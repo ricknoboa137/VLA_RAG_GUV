@@ -45,6 +45,14 @@ models = [
 stream = [
   "paho-mqtt==2.1.0",
 ]
+# Operator speech: offline speech-to-text and microphone capture (scripts/mic_mqtt.py).
+voice = [
+  "faster-whisper==1.2.1",
+  # Transitive via faster-whisper. 1.x requires click>=8.4.2, whose deprecation
+  # warnings break typer 0.12.5 under the test config; 0.36.0 resolves cleanly.
+  "huggingface-hub==0.36.0",
+  "sounddevice==0.5.1",
+]
 dev = [
   "pytest==8.3.3",
   "pytest-cov==5.0.0",

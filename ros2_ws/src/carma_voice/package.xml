@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>carma_voice</name>
+  <version>0.1.0</version>
+  <description>Operator speech capture and offline speech-to-text for CARMA.</description>
+  <maintainer email="none@example.invalid">Erick</maintainer>
+  <license>Apache-2.0</license>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>carma_vision</exec_depend>
+  <!-- faster-whisper and the carma library are pip-installed; see docker/Dockerfile. -->
+
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

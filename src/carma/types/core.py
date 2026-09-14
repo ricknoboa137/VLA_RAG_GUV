@@ -226,6 +226,35 @@ class Correction:
     took_over: bool = False
 
 
+class IntentKind(enum.Enum):
+    """What an operator utterance asks of the robot."""
+
+    STOP = "stop"
+    GO = "go"
+    TURN_LEFT = "turn_left"
+    TURN_RIGHT = "turn_right"
+    YES = "yes"
+    NO = "no"
+    CORRECTION = "correction"
+    NONE = "none"
+
+
+@dataclass(frozen=True, slots=True)
+class OperatorIntent:
+    """An operator utterance reduced to something the system can act on.
+
+    Attributes:
+        kind: The recognised intent. ``CORRECTION`` carries free text destined
+            for memory; ``NONE`` means nothing usable was said.
+        text: The utterance as transcribed, whitespace-trimmed.
+        language: ISO 639-1 code reported by speech recognition, or ``""``.
+    """
+
+    kind: IntentKind
+    text: str
+    language: str = ""
+
+
 @dataclass(frozen=True, slots=True)
 class Decision:
     """The arbiter's output for one step.

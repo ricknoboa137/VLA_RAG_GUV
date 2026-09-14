@@ -76,7 +76,9 @@ docker compose -f docker/compose.yaml up --build broker vision
 
 `carma_vision` runs scene analyzers on the live camera — your own models plug in
 through `configs/analyzers/` (`docs/analyzers.md`) — and streams the stereo
-camera over MQTT. VR viewing is covered in `docs/streaming.md`.
+camera over MQTT. VR viewing is covered in `docs/streaming.md`. `carma_voice`
+turns operator speech into commands, answers and corrections with offline
+speech-to-text (`docs/speech.md`).
 
 ## Contributing
 

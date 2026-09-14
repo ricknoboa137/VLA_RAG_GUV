@@ -83,6 +83,20 @@ host broker:
 MQTT_HOST=broker docker compose -f docker/compose.yaml --profile local-broker up
 ```
 
+## Speech commands on a PC
+
+The `voice` service transcribes operator speech offline. Fetch the model once,
+start the service, then run the microphone script on the host:
+
+```bash
+python scripts/fetch_models.py faster-whisper-base
+docker compose -f docker/compose.yaml up -d --build voice
+python scripts/mic_mqtt.py --list-devices
+python scripts/mic_mqtt.py --device <index>
+```
+
+Set `STT_LANGUAGE=en` or `es` to stop auto-detection. See `docs/speech.md`.
+
 ## Large images and DDS
 
 Raw camera frames are big (640×480 BGR is 921,600 bytes; a side-by-side pair

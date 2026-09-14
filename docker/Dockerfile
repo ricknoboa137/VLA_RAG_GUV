@@ -26,8 +26,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         ros-${ROS_DISTRO}-nav-msgs \
     && rm -rf /var/lib/apt/lists/*
 
-# Pinned, like everything in pyproject.toml.
-RUN pip3 install --no-cache-dir --break-system-packages paho-mqtt==2.1.0
+# Pinned, like everything in pyproject.toml. numpy is pinned to the apt version
+# so faster-whisper's dependencies cannot replace the numpy cv_bridge was built
+# against; the check fails the build if that ever happens.
+RUN pip3 install --no-cache-dir --break-system-packages \
+        numpy==1.26.4 \
+        paho-mqtt==2.1.0 \
+        faster-whisper==1.2.1 \
+        huggingface-hub==0.36.0 \
+    && python3 -c "import numpy, cv2, faster_whisper; \
+assert numpy.__version__ == '1.26.4', numpy.__version__; \
+print('numpy', numpy.__version__, 'opencv', cv2.__version__, 'faster-whisper', faster_whisper.__version__)"
 
 # The carma library. --no-deps: numpy, OpenCV and PyYAML come from apt above so
 # they match the versions cv_bridge was built against.

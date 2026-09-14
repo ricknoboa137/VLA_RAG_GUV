@@ -1,0 +1,13 @@
+carma_stt:
+  ros__parameters:
+    # Fetched into assets/ by scripts/fetch_models.py; assets/ is mounted here.
+    model_path: /ros2_ws/assets/faster-whisper-base
+    # "auto" detects per clip; set "en" or "es" if short commands get misdetected.
+    language: auto
+    compute_type: int8
+    cpu_threads: 4
+    beam_size: 1
+    max_clip_s: 15.0
+    operator_id: operator-0
+    mqtt_port: 1883
+    mqtt_prefix: carma

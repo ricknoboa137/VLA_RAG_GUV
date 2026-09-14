@@ -11,11 +11,34 @@ import argparse
 import sys
 from pathlib import Path
 
-# name -> (repo id, licence). Kept in one place so the licence audit is a diff.
-MODELS: dict[str, tuple[str, str]] = {
-    "minilm": ("sentence-transformers/all-MiniLM-L6-v2", "Apache-2.0"),
-    "mpnet": ("sentence-transformers/all-mpnet-base-v2", "Apache-2.0"),
+# name -> (repo id, licence, kind). Kept in one place so the licence audit is a diff.
+MODELS: dict[str, tuple[str, str, str]] = {
+    "minilm": ("sentence-transformers/all-MiniLM-L6-v2", "Apache-2.0", "sentence-transformers"),
+    "mpnet": ("sentence-transformers/all-mpnet-base-v2", "Apache-2.0", "sentence-transformers"),
+    # Speech-to-text for operator utterances (CTranslate2 conversions of Whisper).
+    "faster-whisper-base": ("Systran/faster-whisper-base", "MIT", "faster-whisper"),
+    "faster-whisper-small": ("Systran/faster-whisper-small", "MIT", "faster-whisper"),
 }
+
+
+def _fetch_sentence_transformer(repo: str, dest: Path) -> int:
+    try:
+        from sentence_transformers import SentenceTransformer
+    except ImportError:
+        print("install the 'retrieval' extra first: pip install -e '.[retrieval]'", file=sys.stderr)
+        return 1
+    SentenceTransformer(repo).save(str(dest))
+    return 0
+
+
+def _fetch_snapshot(repo: str, dest: Path) -> int:
+    try:
+        from huggingface_hub import snapshot_download
+    except ImportError:
+        print("install the 'voice' extra first: pip install -e '.[voice]'", file=sys.stderr)
+        return 1
+    snapshot_download(repo_id=repo, local_dir=str(dest))
+    return 0
 
 
 def main() -> int:
@@ -30,26 +53,19 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    repo, licence = MODELS[args.name]
+    repo, licence, kind = MODELS[args.name]
     dest = args.assets / args.name
     if dest.exists():
         print(f"{dest} already present")
         return 0
 
-    try:
-        from sentence_transformers import SentenceTransformer
-    except ImportError:
-        print(
-            "install the 'retrieval' extra first: pip install -e '.[retrieval]'",
-            file=sys.stderr,
-        )
-        return 1
-
     print(f"fetching {repo} ({licence}) -> {dest}")
     dest.parent.mkdir(parents=True, exist_ok=True)
-    SentenceTransformer(repo).save(str(dest))
-    print("done")
-    return 0
+    fetch = _fetch_sentence_transformer if kind == "sentence-transformers" else _fetch_snapshot
+    status = fetch(repo, dest)
+    if status == 0:
+        print("done")
+    return status
 
 
 if __name__ == "__main__":

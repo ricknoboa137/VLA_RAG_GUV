@@ -40,6 +40,24 @@ One JSON object per control step.
 | `uncertainty` | float | Backbone uncertainty in `[0, 1]` |
 | `timestamp` | string | ISO-8601 |
 
+## Operator utterance (`carma/operator/utterance`, `/carma/operator/utterance`)
+
+One JSON object per transcribed operator utterance, published by
+`carma_voice/stt_node`.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `stamp` | float | Unix time the clip was received, seconds |
+| `operator_id` | string | Who spoke; becomes memory provenance |
+| `text` | string | Transcription, whitespace-trimmed |
+| `intent` | string | `stop` \| `go` \| `turn_left` \| `turn_right` \| `yes` \| `no` \| `correction` \| `none` |
+| `language` | string | ISO 639-1 code detected or forced |
+| `language_probability` | float | Detector confidence in `[0, 1]` |
+| `audio_s` | float | Duration of the operator's clip, seconds |
+| `stt_latency_s` | float | Clip receipt to published text, seconds |
+| `avg_logprob` | float \| null | Mean segment log-probability; null when nothing was recognised |
+| `no_speech_prob` | float \| null | Highest segment no-speech probability |
+
 ## `runs/<run_id>/metrics.yaml`
 
 The serialised `MetricBundle`. Field names match the dataclass exactly; see
