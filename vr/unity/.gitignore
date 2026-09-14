@@ -1,0 +1,46 @@
+# Unity: everything the editor regenerates stays out of git.
+# A fresh clone rebuilds Library/ on first open; packages come from
+# Packages/manifest.json (Meta XR SDK via the package manager).
+**/[Ll]ibrary/
+**/[Tt]emp/
+**/[Oo]bj/
+**/[Bb]uild/
+**/[Bb]uilds/
+**/[Ll]ogs/
+**/[Uu]ser[Ss]ettings/
+**/[Mm]emoryCaptures/
+**/[Rr]ecordings/
+
+# IDE and generated project files
+.vs/
+.vscode/
+.idea/
+*.csproj
+*.sln
+*.suo
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# Signing keys and credentials: never commit. Keep keystores outside the repo.
+*.keystore
+*.jks
+*.p12
+*.pem
+
+# Editor upgrade reports
+UpgradeLog*.htm
+
+# Build outputs and crash data
+*.apk
+*.aab
+*.unitypackage
+*.app
+crashlytics-build.properties
+sysinfo.txt

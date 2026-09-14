@@ -60,6 +60,7 @@ aggregate runs whose manifests disagree.
 src/carma/        library — see AGENTS.md for module boundaries
 ros2_ws/          ROS 2 packages for the physical and simulated robot
 docker/           container image and compose file for the ROS 2 side
+vr/unity/         Meta Quest 2 client (Unity 6, Meta XR SDK) — see vr/unity/README.md
 configs/          every experiment is a config file, not a CLI flag
 docs/             architecture, interfaces, cost model, data schema
 tests/            unit suite, plus architecture and determinism gates

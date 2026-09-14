@@ -1,5 +1,7 @@
-# assets are fetched, never committed
-assets/
+# assets are fetched, never committed. Anchored to the repo root: git on
+# Windows matches case-insensitively, and an unanchored rule also hid Unity's
+# Assets/ folders under vr/unity/.
+/assets/
 runs/
 *.bag
 *.db3
