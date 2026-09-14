@@ -10,6 +10,10 @@ is treated as a measured cost rather than a free oracle.
 The system targets a wheeled differential-drive UGV in outdoor agricultural
 environments, with Gazebo Harmonic and ROS 2 for simulation.
 
+**New here? Start with [HOW_TO_USE.md](HOW_TO_USE.md)**: running the ROS 2
+stack, the camera stream, operator speech and the Meta Quest 2 client, step by
+step.
+
 ## Status
 
 Skeleton. Interfaces and the experiment harness are in place; backbone,
