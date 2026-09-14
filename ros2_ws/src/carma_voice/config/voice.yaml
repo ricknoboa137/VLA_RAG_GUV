@@ -2,12 +2,19 @@ carma_stt:
   ros__parameters:
     # Fetched into assets/ by scripts/fetch_models.py; assets/ is mounted here.
     model_path: /ros2_ws/assets/faster-whisper-base
-    # "auto" detects per clip; set "en" or "es" if short commands get misdetected.
+    # The operator's languages. Detection picks the most probable of these only;
+    # free detection misreads short clips as unrelated languages.
+    languages: "en,es"
+    # "auto" chooses among languages per clip; "en" or "es" forces one.
     language: auto
     compute_type: int8
     cpu_threads: 4
     beam_size: 1
     max_clip_s: 15.0
+    # Clips below this mean log-probability, or above this no-speech
+    # probability, are rejected: kept for analysis, never turned into commands.
+    min_avg_logprob: -1.0
+    max_no_speech_prob: 0.6
     operator_id: operator-0
     mqtt_port: 1883
     mqtt_prefix: carma

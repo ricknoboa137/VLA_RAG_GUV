@@ -19,6 +19,7 @@ def generate_launch_description() -> LaunchDescription:
             DeclareLaunchArgument("mqtt_host", default_value="host.docker.internal"),
             # ros2 launch rejects an empty "name:=" value, so auto-detect is "auto".
             DeclareLaunchArgument("language", default_value="auto"),
+            DeclareLaunchArgument("languages", default_value="en,es"),
             Node(
                 package="carma_voice",
                 executable="stt_node",
@@ -28,6 +29,7 @@ def generate_launch_description() -> LaunchDescription:
                     {
                         "mqtt_host": LaunchConfiguration("mqtt_host"),
                         "language": LaunchConfiguration("language"),
+                        "languages": LaunchConfiguration("languages"),
                     },
                 ],
                 output="screen",

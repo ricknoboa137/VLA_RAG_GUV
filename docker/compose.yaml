@@ -54,7 +54,7 @@ services:
   #   python scripts/fetch_models.py faster-whisper-base
   voice:
     <<: *ros
-    command: ros2 launch carma_voice voice.launch.py mqtt_host:=${MQTT_HOST:-host.docker.internal} language:=${STT_LANGUAGE:-auto}
+    command: ros2 launch carma_voice voice.launch.py mqtt_host:=${MQTT_HOST:-host.docker.internal} language:=${STT_LANGUAGE:-auto} languages:=${STT_LANGUAGES:-en,es}
     volumes:
       - ../assets:/ros2_ws/assets:ro
 

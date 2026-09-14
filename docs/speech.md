@@ -29,8 +29,22 @@ Only capture and transport change when the headset arrives.
 **faster-whisper** (MIT) running Whisper weights converted by Systran (MIT),
 fetched once into `assets/` and loaded with `local_files_only`, so nothing
 reaches the network at run time and no account is needed. It handles English
-and Spanish; the language is auto-detected per clip unless `STT_LANGUAGE` is
-set, which helps when very short commands are misdetected.
+and Spanish.
+
+Two safeguards, both added after the first live-microphone test, where short
+clips were detected as Russian, Japanese or Italian and background talk was
+transcribed into sentences nobody said:
+
+- **Language is chosen among the operator's languages only** (`STT_LANGUAGES`,
+  default `en,es`), from Whisper's per-language probabilities. `STT_LANGUAGE=es`
+  forces one.
+- **Unreliable transcriptions are rejected**: nothing left after voice-activity
+  filtering, mean log-probability below `min_avg_logprob` (−1.0), or no-speech
+  probability above `max_no_speech_prob` (0.6). A rejected clip keeps its text
+  and a `rejected` reason for analysis, but its intent is always `none`.
+
+In a room with other voices, prefer push-to-talk (`--mode ptt`): the energy
+detector cannot tell the operator from a television.
 
 `faster-whisper-base` is the default for CPU. `faster-whisper-small` is more
 accurate and slower; on an NVIDIA board either can run on the GPU.

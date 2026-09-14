@@ -49,10 +49,11 @@ One JSON object per transcribed operator utterance, published by
 |---|---|---|
 | `stamp` | float | Unix time the clip was received, seconds |
 | `operator_id` | string | Who spoke; becomes memory provenance |
-| `text` | string | Transcription, whitespace-trimmed |
+| `text` | string | Transcription, whitespace-trimmed; kept even when rejected |
 | `intent` | string | `stop` \| `go` \| `turn_left` \| `turn_right` \| `yes` \| `no` \| `correction` \| `none` |
-| `language` | string | ISO 639-1 code detected or forced |
-| `language_probability` | float | Detector confidence in `[0, 1]` |
+| `rejected` | string \| null | `no_speech` \| `low_confidence` when the transcription was not trusted (intent is then `none`); null otherwise |
+| `language` | string | ISO 639-1 code, chosen among the configured operator languages or forced |
+| `language_probability` | float | Whisper's probability for that language in `[0, 1]`; 1.0 when forced |
 | `audio_s` | float | Duration of the operator's clip, seconds |
 | `stt_latency_s` | float | Clip receipt to published text, seconds |
 | `avg_logprob` | float \| null | Mean segment log-probability; null when nothing was recognised |
