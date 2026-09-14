@@ -1,0 +1,8 @@
+# Uncertainty-gated asking with no memory consulted.
+condition: ask_only
+arbiter:
+  kind: uncertainty_ask
+  params:
+    threshold: 0.5
+hygiene:
+  kind: none

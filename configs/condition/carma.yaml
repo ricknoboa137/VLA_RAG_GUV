@@ -1,0 +1,6 @@
+# The proposed condition: full arbitration.
+condition: carma
+arbiter:
+  kind: cost_aware
+hygiene:
+  kind: stage_decay

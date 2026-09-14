@@ -1,0 +1,57 @@
+# Fast end-to-end check. Synthetic simulator, tiny episode count, no model
+# downloads. Used by CI and by anyone verifying an install.
+name: smoke
+condition: carma
+seed: 0
+episodes: 3
+
+backbone:
+  kind: heuristic
+  params:
+    max_linear: 0.6
+    max_angular: 0.8
+    noise: 0.02
+
+embedder:
+  kind: hashing
+  params:
+    dim: 256
+
+store:
+  kind: in_memory
+
+retriever:
+  kind: similarity
+  params:
+    min_score: 0.15
+
+hygiene:
+  kind: stage_decay
+
+cost_model:
+  kind: linear
+  params:
+    recovery_s: 45.0
+    retrieval_s: 0.12
+    operator_s: 20.0
+    retrieval_efficacy: 0.6
+    ask_efficacy: 0.95
+
+arbiter:
+  kind: cost_aware
+  params:
+    probe_k: 3
+    ask_budget: 10
+
+operator:
+  kind: scripted
+  params:
+    mean_latency_s: 18.0
+    correction_rate: 0.08
+    seed: 0
+
+sim:
+  kind: synthetic
+  params:
+    dt: 0.1
+    stage: VEGETATIVE

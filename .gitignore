@@ -1,0 +1,29 @@
+# assets are fetched, never committed
+assets/
+runs/
+*.bag
+*.db3
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+dist/
+build/
+.coverage
+htmlcov/
+
+# ros
+install/
+log/
+build/
+
+# editors and os
+.vscode/
+.idea/
+.DS_Store

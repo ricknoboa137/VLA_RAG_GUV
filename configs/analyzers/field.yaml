@@ -1,0 +1,19 @@
+# Scene analyzers run on the live camera by the carma_vision analysis node.
+# Kept apart from experiment configs: analyzers describe the scene and never
+# change a decision, so editing this file does not change any config hash.
+analyzers:
+  - kind: plant_health
+    params:
+      min_saturation: 40
+      min_value: 30
+      min_vegetation: 0.02
+      stress_threshold: 0.25
+
+  # Your own model, once exported to ONNX and placed under assets/:
+  # - kind: onnx_classifier
+  #   params:
+  #     name: leaf_disease
+  #     model_path: assets/models/leaf_disease.onnx
+  #     labels: [healthy, rust, blight, nutrient_deficiency]
+  #     input_width: 224
+  #     input_height: 224

@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+title: "CARMA: Cost-Aware Retrieval Memory Arbitration for Field Robots"
+message: "If you use this software, please cite it as below."
+type: software
+abstract: >-
+  A layer around a vision-language-action navigation backbone that arbitrates
+  between acting, retrieving from a memory of human corrections, and querying
+  the operator, under a shared cost model in which operator attention is a
+  measured resource.
+license: Apache-2.0
+keywords:
+  - field robotics
+  - vision-language-action
+  - retrieval-augmented generation
+  - human-robot interaction
+  - precision agriculture
+authors:
+  - given-names: Erick
+    affiliation: "Óbuda University, Antal Bejczy Center for Intelligent Robotics"

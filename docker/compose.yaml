@@ -1,0 +1,98 @@
+# Run from the repository root:
+#   docker compose -f docker/compose.yaml up --build broker vision
+# See docker/README.md for the profiles.
+name: carma
+
+x-ros: &ros
+  image: carma-ros:jazzy
+  build:
+    context: ..
+    dockerfile: docker/Dockerfile
+    target: base
+  environment:
+    ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-42}
+    # The DDS transport profile for large camera images is baked into the
+    # image (docker/fastdds_shm.xml). Do not also set FASTDDS_BUILTIN_TRANSPORTS.
+  # Fast DDS uses shared memory between processes on one host; containers
+  # need a shared IPC namespace or topics silently carry no data.
+  ipc: host
+  # Lets containers reach a broker running on the host. Docker Desktop provides
+  # this name already; on Linux (the robot) it must be mapped explicitly.
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+  restart: unless-stopped
+
+services:
+  # Optional project broker, for machines without one. By default the stack uses
+  # the broker already running on the host (MQTT_HOST). Start this one with
+  #   MQTT_HOST=broker docker compose -f docker/compose.yaml --profile local-broker up
+  # Host ports default to 1884/9002 so they never collide with a host broker.
+  broker:
+    image: eclipse-mosquitto:2
+    profiles: [local-broker]
+    ports:
+      - "${MQTT_PORT:-1884}:1883"
+      - "${MQTT_WS_PORT:-9002}:9001"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    restart: unless-stopped
+
+  vision:
+    <<: *ros
+    # MQTT_CAMERA=true takes camera frames from the broker instead of a driver.
+    # MQTT_HOST: the host's broker by default; "broker" for the local-broker profile.
+    command: ros2 launch carma_vision vision.launch.py mqtt_host:=${MQTT_HOST:-host.docker.internal} mqtt_camera:=${MQTT_CAMERA:-false}
+    volumes:
+      # Edit analyzer configs and drop ONNX models in without rebuilding.
+      - ../configs:/opt/carma/configs:ro
+      - ../assets:/ros2_ws/assets:ro
+    # On a Linux robot, pass the camera through, e.g.:
+    # devices:
+    #   - /dev/video0:/dev/video0
+
+  # Browser viewer for the camera stream and analysis results:
+  # http://localhost:8088 on this machine, http://<host-ip>:8088 from the LAN.
+  # Override with VIEWER_PORT if 8088 is taken.
+  viewer:
+    image: nginx:1.27-alpine
+    ports:
+      - "${VIEWER_PORT:-8088}:80"
+    volumes:
+      - ./viewer:/usr/share/nginx/html:ro
+    restart: unless-stopped
+
+  bridge:
+    <<: *ros
+    profiles: [bridge]
+    command: ros2 run carma_bridge bridge_node
+    restart: "no"
+
+  sim:
+    <<: *ros
+    image: carma-ros-sim:jazzy
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: sim
+    profiles: [sim]
+    command: ros2 launch carma_sim row_crop.launch.py
+    restart: "no"
+
+  shell:
+    <<: *ros
+    profiles: [dev]
+    command: bash
+    stdin_open: true
+    tty: true
+    restart: "no"
+    volumes:
+      - ../configs:/opt/carma/configs:ro
+      - ../ros2_ws/src:/ros2_ws/src
+
+  # Stereo camera driver: add once the camera model is chosen. It must publish
+  # bgr8 images on the topics named in carma_vision/config/vision.yaml.
+  # camera:
+  #   <<: *ros
+  #   command: ros2 launch <driver_package> <driver>.launch.py
+  #   devices:
+  #     - /dev/video0:/dev/video0

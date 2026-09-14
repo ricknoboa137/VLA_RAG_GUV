@@ -1,0 +1,6 @@
+# Arbitration without staleness handling. Isolates the drift contribution.
+condition: carma_no_hygiene
+arbiter:
+  kind: cost_aware
+hygiene:
+  kind: none

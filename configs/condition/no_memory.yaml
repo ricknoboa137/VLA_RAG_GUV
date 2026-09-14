@@ -1,0 +1,6 @@
+# Backbone alone. The floor.
+condition: no_memory
+arbiter:
+  kind: always_act
+hygiene:
+  kind: none

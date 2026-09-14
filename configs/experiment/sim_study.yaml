@@ -1,0 +1,54 @@
+# The WP2 simulation study. Swap `condition` and re-run across seeds; every
+# other field is held fixed so that conditions differ only by the arbiter and
+# the hygiene policy.
+name: sim_study
+condition: carma
+seed: 0
+episodes: 100
+
+backbone:
+  kind: heuristic
+
+embedder:
+  kind: hashing
+  params:
+    dim: 512
+
+store:
+  kind: in_memory
+
+retriever:
+  kind: similarity
+  params:
+    min_score: 0.2
+
+hygiene:
+  kind: stage_decay
+  params:
+    stage_weight: 0.5
+    age_weight: 0.2
+    distance_weight: 0.3
+    half_life_days: 30.0
+    distance_scale: 25.0
+
+cost_model:
+  kind: linear
+
+arbiter:
+  kind: cost_aware
+  params:
+    probe_k: 3
+    ask_budget: 15
+
+operator:
+  kind: scripted
+  params:
+    mean_latency_s: 18.0
+    refusal_rate: 0.05
+    correction_rate: 0.04
+    seed: 0
+
+sim:
+  kind: synthetic
+  params:
+    dt: 0.1

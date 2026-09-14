@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CARMA Live View</title>
+<style>
+  :root { color-scheme: dark; --bg:#0f1210; --panel:#171b18; --line:#2a302b; --text:#e6ebe6;
+          --muted:#8a948b; --ok:#6fcf7f; --warn:#e8b84a; --bad:#e8705a; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:16px; background:var(--bg); color:var(--text);
+         font:14px/1.45 system-ui, sans-serif; }
+  header { display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-bottom:12px; }
+  h1 { font-size:16px; margin:0 12px 0 0; font-weight:600; }
+  .pill { padding:2px 10px; border-radius:99px; border:1px solid var(--line); color:var(--muted); }
+  .pill.on { color:var(--ok); border-color:var(--ok); }
+  button { background:var(--panel); color:var(--text); border:1px solid var(--line);
+           border-radius:6px; padding:4px 10px; cursor:pointer; font:inherit; }
+  button[aria-pressed="true"] { border-color:var(--ok); }
+  main { display:grid; grid-template-columns:minmax(0,3fr) minmax(240px,1fr); gap:12px; }
+  @media (max-width:800px) { main { grid-template-columns:1fr; } }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px; }
+  #video { width:100%; display:block; background:#000; aspect-ratio:8/3; object-fit:contain; border-radius:4px; }
+  #video.left { object-fit:cover; object-position:left; aspect-ratio:4/3; }
+  .stats { color:var(--muted); margin-top:8px; font-variant-numeric:tabular-nums; }
+  .card { border-top:1px solid var(--line); padding:10px 0; }
+  .card:first-child { border-top:0; padding-top:0; }
+  .label { font-size:18px; font-weight:600; }
+  .healthy { color:var(--ok); } .stressed { color:var(--warn); } .no_vegetation { color:var(--muted); }
+  table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
+  td { padding:2px 0; } td:last-child { text-align:right; }
+  .muted { color:var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>CARMA live view</h1>
+  <span id="conn" class="pill">connecting…</span>
+  <button id="eyes" aria-pressed="false">Left eye only</button>
+</header>
+<main>
+  <section class="panel">
+    <img id="video" alt="Camera stream">
+    <div id="stats" class="stats">waiting for frames on carma/camera/frame</div>
+  </section>
+  <aside class="panel">
+    <div id="analysis"><span class="muted">waiting for carma/analysis/#</span></div>
+  </aside>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"></script>
+<script>
+  // Broker WebSocket port: compose default 9002, override with ?port=NNNN.
+  const host = location.hostname || "localhost";
+  const wsPort = new URLSearchParams(location.search).get("port") || "9002";
+  const client = mqtt.connect(`ws://${host}:${wsPort}`, { clientId: "carma-viewer-" + Math.random().toString(16).slice(2, 8) });
+  const $ = (id) => document.getElementById(id);
+  const video = $("video"), conn = $("conn"), stats = $("stats"), panel = $("analysis");
+  const results = {};
+  let meta = {}, frames = 0, bytes = 0, lastUrl = null, windowStart = performance.now();
+
+  client.on("connect", () => {
+    conn.textContent = `broker ${host}:${wsPort}`; conn.classList.add("on");
+    client.subscribe(["carma/camera/frame", "carma/camera/meta", "carma/analysis/#"]);
+  });
+  client.on("close", () => { conn.textContent = "disconnected"; conn.classList.remove("on"); });
+
+  client.on("message", (topic, payload) => {
+    if (topic === "carma/camera/frame") {
+      const url = URL.createObjectURL(new Blob([payload], { type: "image/jpeg" }));
+      video.onload = () => { if (lastUrl) URL.revokeObjectURL(lastUrl); lastUrl = url; };
+      video.src = url; frames++; bytes += payload.length;
+    } else if (topic === "carma/camera/meta") {
+      meta = JSON.parse(payload.toString());
+    } else {
+      const r = JSON.parse(payload.toString());
+      results[r.analyzer] = r; renderAnalysis();
+    }
+  });
+
+  function renderAnalysis() {
+    panel.replaceChildren(...Object.values(results).map((r) => {
+      const card = document.createElement("div"); card.className = "card";
+      const rows = Object.entries(r.scores).map(([k, v]) =>
+        `<tr><td class="muted">${k.replaceAll("_", " ")}</td><td>${v.toFixed(3)}</td></tr>`).join("");
+      card.innerHTML = `<div class="muted">${r.analyzer}</div>
+        <div class="label ${r.label}">${r.label.replaceAll("_", " ")}</div>
+        <table>${rows}</table>
+        <div class="muted">t = ${r.t.toFixed(1)} s</div>`;
+      return card;
+    }));
+  }
+
+  setInterval(() => {
+    const dt = (performance.now() - windowStart) / 1000;
+    if (frames) {
+      stats.textContent = `${(frames / dt).toFixed(1)} fps · ${Math.round(bytes / frames / 1024)} KiB/frame · ` +
+        `${meta.layout ?? "?"} ${meta.width ?? "?"}×${meta.height ?? "?"}`;
+    }
+    frames = 0; bytes = 0; windowStart = performance.now();
+  }, 2000);
+
+  $("eyes").addEventListener("click", (e) => {
+    const on = e.currentTarget.getAttribute("aria-pressed") !== "true";
+    e.currentTarget.setAttribute("aria-pressed", String(on));
+    video.classList.toggle("left", on);
+  });
+</script>
+</body>
+</html>

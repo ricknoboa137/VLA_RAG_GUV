@@ -1,0 +1,6 @@
+# The published retrieval-augmented pattern: retrieve every step.
+condition: unconditional_retrieval
+arbiter:
+  kind: always_retrieve
+hygiene:
+  kind: stage_decay

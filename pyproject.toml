@@ -1,0 +1,95 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "carma"
+version = "0.1.0"
+description = "Cost-aware retrieval memory arbitration for field robots"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Erick" }]
+keywords = ["robotics", "vision-language-action", "retrieval", "human-robot-interaction"]
+classifiers = [
+  "Programming Language :: Python :: 3.11",
+  "License :: OSI Approved :: Apache Software License",
+  "Intended Audience :: Science/Research",
+]
+
+# Pinned deliberately. An unpinned requirement fails the CI dependency gate.
+dependencies = [
+  "numpy==1.26.4",
+  "opencv-python-headless==4.10.0.84",
+  "scipy==1.14.1",
+  "pyyaml==6.0.2",
+  "structlog==24.4.0",
+  "typer==0.12.5",
+  # Transitive via typer; pinned because newer click releases emit
+  # DeprecationWarnings that the test config promotes to errors.
+  "click==8.1.7",
+  "pydantic==2.9.2",
+]
+
+[project.optional-dependencies]
+# Retrieval backends. All free and locally runnable; none require an account.
+retrieval = [
+  "sentence-transformers==3.1.1",
+  "faiss-cpu==1.8.0.post1",
+]
+# Runs user-trained perception models exported to ONNX. CPU only, no account.
+models = [
+  "onnxruntime==1.19.2",
+]
+# Host-side tools that talk to the MQTT broker (scripts/webcam_mqtt.py).
+stream = [
+  "paho-mqtt==2.1.0",
+]
+dev = [
+  "pytest==8.3.3",
+  "pytest-cov==5.0.0",
+  "mypy==1.11.2",
+  "ruff==0.6.9",
+  "types-PyYAML==6.0.12.20240917",
+]
+
+[project.scripts]
+carma = "carma.cli.main:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "A", "C4", "SIM", "ARG", "PTH", "RUF"]
+# ARG002: implementations must match Protocol signatures even when a baseline
+# ignores an argument; see AGENTS.md section 4.
+ignore = ["A003", "ARG002"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["ARG"]
+# MemoryError_ avoids shadowing the builtin MemoryError.
+"src/carma/types/errors.py" = ["N801", "N818"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unreachable = true
+disallow_any_generics = true
+plugins = []
+
+[[tool.mypy.overrides]]
+module = ["cv2.*", "faiss.*", "sentence_transformers.*", "scipy.*", "onnxruntime.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+  "sim: requires a running simulator; excluded from the default run",
+  "slow: takes more than a few seconds",
+]
+filterwarnings = ["error::DeprecationWarning"]

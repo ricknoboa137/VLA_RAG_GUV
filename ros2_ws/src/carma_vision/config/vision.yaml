@@ -1,0 +1,31 @@
+# Remap the image topics to whatever your stereo camera driver publishes.
+carma_mqtt_camera:
+  ros__parameters:
+    mqtt_port: 1883
+    mqtt_prefix: carma
+    left_topic: /carma/stereo/left/image_raw
+    right_topic: /carma/stereo/right/image_raw
+    frame_id: camera
+    mono_as_stereo: true
+
+carma_analysis:
+  ros__parameters:
+    analyzers_config: /opt/carma/configs/analyzers/field.yaml
+    image_topic: /carma/stereo/left/image_raw
+    odom_topic: /carma/odom
+    rate_hz: 2.0
+    stage: VEGETATIVE
+    mqtt_port: 1883
+    mqtt_prefix: carma
+
+carma_stream:
+  ros__parameters:
+    left_topic: /carma/stereo/left/image_raw
+    right_topic: /carma/stereo/right/image_raw
+    stereo: true
+    sync_slop_s: 0.02
+    rate_hz: 15.0
+    jpeg_quality: 70
+    max_width: 2560
+    mqtt_port: 1883
+    mqtt_prefix: carma
