@@ -70,13 +70,17 @@ ships; see the README inside.
 
 ## Set up push-to-talk speech
 
-1. In `SampleScene`, create an empty GameObject named `CarmaVoice` and add the
-   **Carma Voice** component.
-2. Set **Broker Address** to the machine running Mosquitto (at home on the
-   development PC: `192.168.0.153`), **Broker Port** `1883`, **Auto Connect** on.
-   It may differ from the video receiver's broker (`10.169.15.27` in the scene).
-3. Optional: assign **Status Label** to a UI `Text` on a world-space canvas in
-   view, to see `listening…`, `transcribing…` and the result in the headset.
+`SampleScene` already contains it:
+
+- **`CarmaVoice`** (root object) with the *Carma Voice* component: **Broker
+  Address** `192.168.0.153` (the development PC on the home Wi-Fi), **Broker
+  Port** `1883`, **Auto Connect** on, talk button **B**. Change the address to
+  the robot's broker on the robot network; it may differ from the video
+  receiver's broker (`10.169.15.27` in the scene).
+- **`CarmaVoiceStatus`** under `OVRCameraRig/.../CenterEyeAnchor`: a small
+  world-space panel 1.2 m ahead and slightly below eye level, linked as the
+  component's **Status Label**, showing `listening…`, `transcribing…` and the
+  result.
 4. Microphone permission is already declared in
    `Assets/Plugins/Android/AndroidManifest.xml`
    (`android.permission.RECORD_AUDIO`). Accept the prompt in the headset on
