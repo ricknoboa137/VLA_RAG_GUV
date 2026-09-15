@@ -2,6 +2,9 @@
 # Windows matches case-insensitively, and an unanchored rule also hid Unity's
 # Assets/ folders under vr/unity/.
 /assets/
+
+# local tool configuration with machine-specific paths
+/.mcp.json
 runs/
 *.bag
 *.db3

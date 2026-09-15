@@ -13,7 +13,7 @@ not modified** and stays at `Documents\UnityProjects\CleanSetup` (Unity
 |---|---|---|
 | Unity | 2022.3.15f1 | **6000.3.24f1** (LTS) |
 | Meta SDK | Oculus Integration copied into `Assets/Oculus` (919 MB) | **Meta XR SDK 205.0.0** from the package manager |
-| XR plugin | Oculus XR Plugin 4.1.2 | Oculus XR Plugin 4.5.5 |
+| XR plugin | Oculus XR Plugin 4.1.2 | **OpenXR 1.18.0** + Unity Meta OpenXR 2.6.1 |
 | Speech | none | `CarmaVoice` push-to-talk |
 | Size in git | too large to push | a few MB |
 
@@ -37,7 +37,14 @@ Verified by opening the project in Unity 6000.3.24f1 in batch mode with the
 Android build target:
 
 - Packages resolve: Meta XR SDK Core, Interaction and Interaction OVR 205.0.0;
-  Oculus XR Plugin 4.5.5.
+  OpenXR 1.18.0 and Unity Meta OpenXR 2.6.1.
+- XR provider is **OpenXR** on Android and Standalone (the deprecated Oculus XR
+  plugin is removed). Enabled OpenXR features: Meta XR Feature (for
+  `OVRCameraRig` and `OVRInput`), Oculus Touch Controller Profile, and Meta
+  Quest Support on Android. OpenXR project validation fixes applied: Vulkan
+  graphics API, Game Activity entry point, input-polling latency optimization.
+  One informational notice remains (a feature targets an OpenXR API patch
+  version below 1.1.54); it has no automatic fix and is not an error.
 - Scripts compile with **0 errors**. The six warnings are obsolete-API notices
   in `Assets/LegacyOVR/FromOVRControllerHandDataSource.cs`.
 - All 25 asset references in `SampleScene` resolve (Oculus prefabs map to the
