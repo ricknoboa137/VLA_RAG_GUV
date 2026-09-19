@@ -1,0 +1,37 @@
+[
+  {
+    "distance_m": 0.31,
+    "disparity_px": 73.96875,
+    "spread_px": 0.6875,
+    "eye_width": 640,
+    "eye_height": 480
+  },
+  {
+    "distance_m": 0.5,
+    "disparity_px": 30.125,
+    "spread_px": 0.75,
+    "eye_width": 640,
+    "eye_height": 480
+  },
+  {
+    "distance_m": 0.605,
+    "disparity_px": 19.84375,
+    "spread_px": 0.375,
+    "eye_width": 640,
+    "eye_height": 480
+  },
+  {
+    "distance_m": 0.72,
+    "disparity_px": 11.0625,
+    "spread_px": 0.25,
+    "eye_width": 640,
+    "eye_height": 480
+  },
+  {
+    "distance_m": 1.26,
+    "disparity_px": -9.0,
+    "spread_px": 0.1875,
+    "eye_width": 640,
+    "eye_height": 480
+  }
+]
