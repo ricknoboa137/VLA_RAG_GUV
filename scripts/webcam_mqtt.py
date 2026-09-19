@@ -34,12 +34,25 @@ import numpy as np
 import paho.mqtt.client as mqtt
 
 
-def _open(index: int) -> cv2.VideoCapture:
+def _open(index: int, width: int | None = None, height: int | None = None) -> cv2.VideoCapture:
     backend = cv2.CAP_DSHOW if sys.platform == "win32" else cv2.CAP_ANY
     cap = cv2.VideoCapture(index, backend)
     if not cap.isOpened():
         msg = f"camera {index} could not be opened"
         raise SystemExit(msg)
+    if width and height:
+        # MJPG first: most USB cameras only offer their higher modes compressed,
+        # and silently stay at the default resolution when asked in raw YUY2.
+        cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+        got_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        got_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        if (got_w, got_h) != (width, height):
+            print(
+                f"camera {index}: asked {width}x{height}, got {got_w}x{got_h}",
+                file=sys.stderr,
+            )
     return cap
 
 
@@ -62,14 +75,24 @@ def main() -> int:
         default="raw",
         help="raw JPEG bytes (ROS path) or base64 text (Unity mqttReceiver)",
     )
+    parser.add_argument("--width", type=int, default=None, help="capture width, e.g. 1280")
+    parser.add_argument("--height", type=int, default=None, help="capture height, e.g. 480")
     parser.add_argument("--fps", type=float, default=15.0)
     parser.add_argument("--quality", type=int, default=80, help="JPEG quality 1-100")
     args = parser.parse_args()
     frame_topic = args.topic if args.topic is not None else f"{args.prefix}/source/frame"
 
-    left = _open(args.camera)
-    right = _open(args.right_camera) if args.right_camera is not None else None
-    layout = "sbs_lr" if right is not None else "mono"
+    left = _open(args.camera, args.width, args.height)
+    right = (
+        _open(args.right_camera, args.width, args.height) if args.right_camera is not None else None
+    )
+
+    # A single camera that returns a frame far wider than it is tall is already
+    # delivering both eyes side by side, which is how most "3D USB" cameras
+    # work; the headset splits it. Two cameras are stitched below instead.
+    ok, probe = left.read()
+    wide = bool(ok) and probe.shape[1] / probe.shape[0] >= 2.0
+    layout = "sbs_lr" if right is not None or wide else "mono"
 
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="carma-webcam")
     client.connect(args.host, args.port, keepalive=30)

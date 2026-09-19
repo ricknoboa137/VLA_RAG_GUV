@@ -82,11 +82,34 @@ layer, which does render — the same arrangement as the speech status panel.
 Both `displayLeft` and `displayRight` point at its single `RawImage`, so a
 mono frame fills the view.
 
-The old per-eye objects are left in the scene, unused, because restoring true
-stereo will build on them. That needs a side-by-side frame (the publisher's
-`--right-camera`) and a `uvRect` of `(0,0,0.5,1)` and `(0.5,0,0.5,1)` so each
-eye takes its half — the original achieved the split by placement rather than
-by `uvRect`, which is why both of its rects are full.
+The old per-eye objects are left in the scene, unused.
+
+### Stereo
+
+A stereo camera sends both eyes in one synchronised frame, side by side. The
+split happens in `Assets/Shaders/StereoSideBySide.shader`, which picks the
+half matching `unity_StereoEyeIndex`, because the per-eye-layer approach does
+not render at all (above) and one panel therefore has to serve both eyes. It
+works under single-pass instanced and multi-pass alike.
+
+`CarmaStereoDisplay` on the same object decides the layout from the frame's
+aspect ratio: two 640x480 views arrive as 1280x480, so anything at least 2.2
+times wider than tall is treated as a pair. `mode` forces Mono or Stereo for
+an ultra-wide single camera, and `swapEyes` corrects a camera whose halves are
+right-left — get that wrong and depth inverts uncomfortably.
+
+The development "3D USB Camera" on this PC is index 1 and offers 2560x960,
+2560x720, 1280x480 and 640x240, all side-by-side. 1280x480 suits this
+transport; the higher modes wait for H.264:
+
+```bash
+python scripts/webcam_mqtt.py --camera 1 --width 1280 --height 480 \
+    --host <pc-ip> --topic MqttVidFeed --encoding base64
+```
+
+Note `--width`/`--height`: without them the camera stays in its 640x240
+default, and the publisher sets MJPG first because most USB cameras offer
+their higher modes only compressed.
 
 To diagnose a black screen, `mqttReceiver` logs one line per second with the
 frame count, payload size, whether `LoadImage` succeeded and the texture size:

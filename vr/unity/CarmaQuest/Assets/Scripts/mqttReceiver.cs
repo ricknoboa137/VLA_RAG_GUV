@@ -28,6 +28,8 @@ public class mqttReceiver : M2MqttUnityClient
 
     private int framesReceived;
     private float lastFrameLogTime;
+    private int publishCount;
+    private float lastPublishLogTime;
     //using C# Property GET/SET and event listener to reduce Update overhead in the controlled objects
     private string m_msg;
 
@@ -80,8 +82,28 @@ public class mqttReceiver : M2MqttUnityClient
 
     public void Publish()
     {
-        client.Publish(topicPublish, System.Text.Encoding.UTF8.GetBytes(messagePublish), MqttMsgBase.QOS_LEVEL_EXACTLY_ONCE, false);
-        //UnityEngine.Debug.Log("Test message published");
+        if (client == null || !client.IsConnected)
+        {
+            if (Time.time - lastPublishLogTime >= 1f)
+            {
+                lastPublishLogTime = Time.time;
+                UnityEngine.Debug.Log("[mqttReceiver] publish skipped: client "
+                    + (client == null ? "null" : "not connected"));
+            }
+            return;
+        }
+
+        // QoS 0. Head pose is sent every frame and is worthless once stale, so
+        // the exactly-once handshake only fills the in-flight queue until
+        // nothing is delivered at all.
+        client.Publish(topicPublish, System.Text.Encoding.UTF8.GetBytes(messagePublish), MqttMsgBase.QOS_LEVEL_AT_MOST_ONCE, false);
+        publishCount++;
+        if (Time.time - lastPublishLogTime >= 1f)
+        {
+            lastPublishLogTime = Time.time;
+            UnityEngine.Debug.Log("[mqttReceiver] published " + publishCount + " to '" + topicPublish
+                + "': " + messagePublish);
+        }
     }
 
     public void SetEncrypted(bool isEncrypted)   {
