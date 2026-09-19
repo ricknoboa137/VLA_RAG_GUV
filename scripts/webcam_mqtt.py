@@ -9,11 +9,22 @@ these frames back into ROS image topics.
 
 With one webcam the frame is sent as mono and the container duplicates it into
 both eyes; ``--right-camera`` sends a real side-by-side pair from two cameras.
+
+The Quest client in ``vr/unity`` reads a different topic and expects the JPEG
+as base64 text rather than bytes, so feeding the headset directly needs both
+overrides:
+
+    python scripts/webcam_mqtt.py --host 192.168.0.153 \
+        --topic MqttVidFeed --encoding base64
+
+Base64 costs a third more bandwidth and an extra copy per frame; it exists to
+drive the existing Unity receiver unchanged. Prefer ``raw`` for the ROS path.
 """
 
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import sys
 import time
@@ -40,9 +51,21 @@ def main() -> int:
     parser.add_argument("--host", default="localhost")
     parser.add_argument("--port", type=int, default=1883)
     parser.add_argument("--prefix", default="carma")
+    parser.add_argument(
+        "--topic",
+        default=None,
+        help="frame topic; defaults to <prefix>/source/frame. Use MqttVidFeed for the Quest client",
+    )
+    parser.add_argument(
+        "--encoding",
+        choices=("raw", "base64"),
+        default="raw",
+        help="raw JPEG bytes (ROS path) or base64 text (Unity mqttReceiver)",
+    )
     parser.add_argument("--fps", type=float, default=15.0)
     parser.add_argument("--quality", type=int, default=80, help="JPEG quality 1-100")
     args = parser.parse_args()
+    frame_topic = args.topic if args.topic is not None else f"{args.prefix}/source/frame"
 
     left = _open(args.camera)
     right = _open(args.right_camera) if args.right_camera is not None else None
@@ -56,7 +79,10 @@ def main() -> int:
     period = 1.0 / args.fps
     sent = 0
     started = time.monotonic()
-    print(f"publishing {layout} frames to {args.host}:{args.port} — Ctrl+C to stop")
+    print(
+        f"publishing {layout} frames to {args.host}:{args.port} "
+        f"on {frame_topic} as {args.encoding} — Ctrl+C to stop"
+    )
     try:
         while True:
             tick = time.monotonic()
@@ -73,7 +99,9 @@ def main() -> int:
                 frame = np.hstack((frame, frame_r))
             ok, buf = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), args.quality])
             if ok:
-                client.publish(f"{args.prefix}/source/frame", buf.tobytes(), qos=0)
+                jpeg = buf.tobytes()
+                payload = base64.b64encode(jpeg) if args.encoding == "base64" else jpeg
+                client.publish(frame_topic, payload, qos=0)
                 sent += 1
             if sent and sent % int(args.fps * 5) == 0:
                 rate = sent / (time.monotonic() - started)

@@ -25,6 +25,9 @@ public class mqttReceiver : M2MqttUnityClient
     public RawImage displayLeft;
     public RawImage displayRight;
     public Texture2D newFrame;
+
+    private int framesReceived;
+    private float lastFrameLogTime;
     //using C# Property GET/SET and event listener to reduce Update overhead in the controlled objects
     private string m_msg;
 
@@ -92,6 +95,8 @@ public class mqttReceiver : M2MqttUnityClient
     protected override void OnConnected()    {
         base.OnConnected();
         isConnected = true;
+        UnityEngine.Debug.Log("[mqttReceiver] connected to " + brokerAddress + ":" + brokerPort
+            + ", subscribing to '" + topicSubscribe + "'");
         if (autoTest)        {
             Publish();
         }
@@ -138,10 +143,22 @@ public class mqttReceiver : M2MqttUnityClient
             //Resources.UnloadAsset(newFrame);        
             msg = System.Text.Encoding.UTF8.GetString(message);
             byte[] base64EncodedBytes = System.Convert.FromBase64String(msg); //Convert.ToBase64String(bytes)
-            newFrame.LoadImage(base64EncodedBytes);
+            bool loaded = newFrame.LoadImage(base64EncodedBytes);
             newFrame.Apply();
             displayLeft.texture = newFrame;
             displayRight.texture = newFrame;
+            // One line per second, enough to tell "no frames" from "frames that
+            // will not decode" without flooding logcat at 15 fps.
+            framesReceived++;
+            if (Time.time - lastFrameLogTime >= 1f)
+            {
+                lastFrameLogTime = Time.time;
+                UnityEngine.Debug.Log("[mqttReceiver] " + framesReceived + " frames, payload "
+                    + message.Length + " B, jpeg " + base64EncodedBytes.Length + " B, loaded=" + loaded
+                    + ", tex " + newFrame.width + "x" + newFrame.height
+                    + ", leftActive=" + displayLeft.gameObject.activeInHierarchy
+                    + ", enabled=" + displayLeft.enabled);
+            }
             //GetComponent<Renderer>().material.mainTexture = tex;
             //UnityEngine.Debug.Log("Received: " + msg);
             //UnityEngine.Debug.Log("from topic: " + topic);       

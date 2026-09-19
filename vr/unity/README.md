@@ -60,13 +60,43 @@ Quest 2.
 
 | Object / script | Role | Topic |
 |---|---|---|
-| `mqttReceiver` | Receives camera frames (base64 JPEG) and shows them on the left/right eye panels | subscribes `MqttVidFeed` |
+| `mqttReceiver` | Receives camera frames (base64 JPEG) and shows them on `CarmaVideo` | subscribes `MqttVidFeed` |
 | `mqttController` | Publishes head rotation, thumbstick and A button every frame | publishes `test1` |
 | `CarmaVoice` | Push-to-talk speech (hold **B**) | publishes `carma/operator/audio`, subscribes `carma/operator/utterance` |
 
 `Assets/LegacyOVR/` holds two prefabs and one script from the old Oculus
 Integration that the scene still references and Meta XR SDK 205 no longer
 ships; see the README inside.
+
+### Why the video panel moved
+
+The original project shows video on `RawImageLeft` and `RawImageRight`,
+parented to `LeftEyeAnchor` and `RightEyeAnchor` and placed on the custom
+layers `left` and `right`, so that each eye's own camera draws only its own
+panel. Under OpenXR nothing renders those layers and both panels stay
+invisible, which looks exactly like a dead video feed: the frames arrive, the
+JPEG decodes and the texture is correct, but it is never drawn.
+
+`CarmaVideo` under `CenterEyeAnchor` replaces them. It is on the `Default`
+layer, which does render — the same arrangement as the speech status panel.
+Both `displayLeft` and `displayRight` point at its single `RawImage`, so a
+mono frame fills the view.
+
+The old per-eye objects are left in the scene, unused, because restoring true
+stereo will build on them. That needs a side-by-side frame (the publisher's
+`--right-camera`) and a `uvRect` of `(0,0,0.5,1)` and `(0.5,0,0.5,1)` so each
+eye takes its half — the original achieved the split by placement rather than
+by `uvRect`, which is why both of its rects are full.
+
+To diagnose a black screen, `mqttReceiver` logs one line per second with the
+frame count, payload size, whether `LoadImage` succeeded and the texture size:
+
+```bash
+adb logcat -s Unity | grep mqttReceiver
+```
+
+Frames counting up with `loaded=True` means the problem is rendering, not the
+feed.
 
 ## Set up push-to-talk speech
 
