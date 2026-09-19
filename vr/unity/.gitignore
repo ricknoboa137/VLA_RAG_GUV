@@ -44,3 +44,7 @@ UpgradeLog*.htm
 *.app
 crashlytics-build.properties
 sysinfo.txt
+
+# Editor tooling scratch space (MCP bridge) and OpenXR API layer working dirs
+.utmp/
+APILayers~/

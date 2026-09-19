@@ -47,6 +47,9 @@ public class CarmaVoice : M2MqttUnityClient
     private AudioClip recording;
     private bool isRecording;
     private float recordStartTime;
+    private float lastMicProbeTime;
+
+    private const float MicProbeInterval = 0.5f;
 
     [Serializable]
     private class Utterance
@@ -64,23 +67,40 @@ public class CarmaVoice : M2MqttUnityClient
 #if UNITY_ANDROID && !UNITY_EDITOR
         if (!Permission.HasUserAuthorizedPermission(Permission.Microphone))
         {
+            // Asynchronous: the permission dialog is still open when this
+            // returns, and Microphone.devices stays empty until it is granted.
+            // Device selection therefore has to keep retrying in Update.
             Permission.RequestUserPermission(Permission.Microphone);
         }
 #endif
-        if (Microphone.devices.Length > 0)
-        {
-            micDevice = Microphone.devices[0];
-            int minFreq, maxFreq;
-            Microphone.GetDeviceCaps(micDevice, out minFreq, out maxFreq);
-            // Both zero means the device accepts any rate.
-            recordRate = (minFreq == 0 && maxFreq == 0) ? sampleRate : Mathf.Clamp(sampleRate, minFreq, maxFreq);
-            SetStatus("hold B to talk");
-        }
-        else
-        {
-            SetStatus("no microphone found");
-        }
+        SetStatus("starting microphone…");
+        TryAcquireMicrophone();
         base.Start();
+    }
+
+    /// <summary>
+    /// Picks the first microphone once the platform exposes one. Returns false
+    /// while the permission dialog is still open or no device is present.
+    /// </summary>
+    private bool TryAcquireMicrophone()
+    {
+        if (micDevice != null)
+        {
+            return true;
+        }
+        if (Microphone.devices.Length == 0)
+        {
+            return false;
+        }
+
+        micDevice = Microphone.devices[0];
+        int minFreq, maxFreq;
+        Microphone.GetDeviceCaps(micDevice, out minFreq, out maxFreq);
+        // Both zero means the device accepts any rate.
+        recordRate = (minFreq == 0 && maxFreq == 0) ? sampleRate : Mathf.Clamp(sampleRate, minFreq, maxFreq);
+        Debug.Log("[CarmaVoice] microphone '" + micDevice + "' at " + recordRate + " Hz");
+        SetStatus("hold B to talk");
+        return true;
     }
 
     protected override void Update()
@@ -89,6 +109,23 @@ public class CarmaVoice : M2MqttUnityClient
 
         if (micDevice == null)
         {
+            // Retry every half second: the permission may be granted long
+            // after Start, and giving up once would disable talking for the
+            // whole session.
+            if (Time.time - lastMicProbeTime >= MicProbeInterval)
+            {
+                lastMicProbeTime = Time.time;
+                if (!TryAcquireMicrophone())
+                {
+#if UNITY_ANDROID && !UNITY_EDITOR
+                    SetStatus(Permission.HasUserAuthorizedPermission(Permission.Microphone)
+                        ? "no microphone found"
+                        : "waiting for microphone permission");
+#else
+                    SetStatus("no microphone found");
+#endif
+                }
+            }
             return;
         }
         if (!isRecording && OVRInput.GetDown(talkButton))

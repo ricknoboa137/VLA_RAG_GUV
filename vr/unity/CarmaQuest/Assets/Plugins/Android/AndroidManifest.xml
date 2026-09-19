@@ -1,18 +1,34 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Two reasons this file exists:
+
+  1. The microphone permission. Without it the Quest records silence and
+     CarmaVoice always reports "not understood".
+  2. The launcher activity must match the player entry point. This project
+     builds with Application Entry = GameActivity, so the activity is
+     UnityPlayerGameActivity; declaring the older UnityPlayerActivity instead
+     leaves the merged manifest with no MAIN/LAUNCHER activity and the app
+     installs but cannot start. The block below is Unity's own GameActivity
+     template (Editor/Data/PlaybackEngines/AndroidPlayer/Apk/UnityManifest.xml).
+
+  The activity cannot simply be omitted: the Meta XR SDK's manifest
+  preprocessor injects the VR intent category and focus-aware metadata into an
+  activity it expects to find here, and with none declared it emits a nameless
+  <activity> element that fails the Gradle manifest merge.
+-->
 <manifest
     xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.unity3d.player"
     xmlns:tools="http://schemas.android.com/tools">
-    <!-- CarmaVoice push-to-talk speech; without it the Quest records silence. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <application>
-        <activity android:name="com.unity3d.player.UnityPlayerActivity"
-                  android:theme="@style/UnityThemeSelector">
+        <activity android:name="com.unity3d.player.UnityPlayerGameActivity"
+                  android:theme="@style/BaseUnityGameActivityTheme">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
             <meta-data android:name="unityplayer.UnityActivity" android:value="true" />
+            <meta-data android:name="android.app.lib_name" android:value="game" />
         </activity>
     </application>
 </manifest>
