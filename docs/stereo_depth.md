@@ -1,5 +1,11 @@
 # Stereo depth on the 3D USB Camera
 
+Every number here comes from
+`experiments/stereo_depth_validation/`, and
+`python scripts/report_stereo_validation.py` recomputes all of it from the
+recorded measurements without a camera. `tests/test_stereo_validation.py`
+fails if a change to the depth model would invalidate a claim below.
+
 ## The camera is toed in
 
 Its two lenses converge rather than pointing in parallel, which suits the 3D
