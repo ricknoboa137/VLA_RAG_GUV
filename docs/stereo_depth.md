@@ -102,10 +102,22 @@ camera has none.
 
 Two caveats before building on this.
 
-**Rolling shutter.** Cheap USB cameras expose row by row, so the image skews
-while the robot moves and the geometry SLAM depends on is no longer a single
-instant. This hurts far more than depth accuracy. Worth measuring before
-committing: wave the camera and look for slanted verticals.
+**Shutter: measured, and it is effectively global.** Regressing within-frame
+skew against pan rate over 979 samples gives a slope of 0.042 (95% CI 0.021
+to 0.063), where a full-frame rolling readout would give 1.0. At 56 fps that
+is 0.75 ms of skew, against the 10-30 ms typical of a rolling shutter. One
+frame is close enough to one instant for visual-inertial odometry.
+
+The slope is small but its interval excludes zero, and hand-held sweeps
+translate as well as rotate, so parallax between the top and bottom strips
+mimics a little skew. Read 0.042 as an upper bound rather than an estimate.
+See `experiments/stereo_depth_validation/shutter.json`, and
+`scripts/test_rolling_shutter.py` for the simpler pass/fail version.
+
+Measuring this needs the camera itself to move: a waved object motion-blurs,
+its edges vanish from the detector, and what remains is the static background,
+which cannot skew whatever the shutter does. Two attempts here returned a
+confident "global shutter" from a scene that had not moved.
 
 **No IMU and a short baseline.** 60 mm and a 3 m horizon suit indoor and
 close-range outdoor work. Outdoors at speed there is little parallax to track.

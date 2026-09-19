@@ -1,0 +1,27 @@
+{
+  "title": "Shutter type of the 3D USB Camera, by skew against pan rate",
+  "date": "2026-09-20",
+  "method": {
+    "principle": "A rolling shutter exposes row by row, so panning shifts the bottom of the frame relative to the top. That skew is proportional to the pan rate, and the constant of proportionality is the readout time as a fraction of the frame period. A global shutter cannot produce it at any speed.",
+    "measurement": "Per frame pair, the horizontal shift of the whole left eye and of its top and bottom 120-row strips, each by phase correlation. Skew is the top strip's shift minus the bottom strip's. Least squares of skew against whole-frame shift.",
+    "capture": "hand-held sweeps at varied speed, 1280x480, 20 s",
+    "why_not_a_waved_object": "A fast subject motion-blurs, its edges disappear from the detector, and the surviving edges belong to the static background, which cannot skew whatever the shutter does. The first attempt failed exactly this way and read 'global shutter' from a scene that never moved."
+  },
+  "result": {
+    "frames": 1130,
+    "usable_motion_samples": 979,
+    "pan_rate_px_per_frame": {"min": 1.0, "max": 19.0},
+    "frame_rate_fps": 56,
+    "slope": 0.0416,
+    "slope_standard_error": 0.0105,
+    "slope_ci95": [0.021, 0.063],
+    "intercept_px": 0.30,
+    "implied_readout_ms": 0.75
+  },
+  "interpretation": "Readout skew is at most about 4 per cent of the frame period, against 1.0 for a full-frame rolling readout. The camera behaves as a global shutter, so one frame is close enough to one instant for visual-inertial odometry.",
+  "limitations": [
+    "The slope is small but its confidence interval excludes zero. A hand-held sweep translates as well as rotates, and parallax then shifts the top and bottom strips differently because they see different depths; that mimics a small readout skew. The measurement is therefore an upper bound on the true skew, not an estimate of it.",
+    "One camera unit, one session, one capture mode (1280x480 at 56 fps). A different resolution or frame rate can have a different readout time.",
+    "Exposure was left on automatic under indoor lighting. Long exposure blurs fast motion and cost the first two attempts their data."
+  ]
+}
