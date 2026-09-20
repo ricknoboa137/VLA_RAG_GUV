@@ -62,6 +62,19 @@ CMD ["bash"]
 
 FROM base AS sim
 ARG ROS_DISTRO
+# xacro expands carma_sim/worlds/row_crop.sdf at the requested crop stage; see
+# ros2_ws/src/carma_sim/README.md for why the world is a template.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ros-${ROS_DISTRO}-ros-gz \
+        ros-${ROS_DISTRO}-xacro \
     && rm -rf /var/lib/apt/lists/*
+
+# Headless camera rendering. ogre2 reaches the GPU through EGL with no display;
+# with no GPU either it falls back to Mesa's software EGL device, which is what
+# makes `row_crop.launch.py headless:=true` work on a CI runner and under
+# Docker Desktop. libegl-mesa0 provides that fallback.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libegl1 \
+        libegl-mesa0 \
+    && rm -rf /var/lib/apt/lists/*
+ENV GZ_SIM_RENDER_ENGINE=ogre2
