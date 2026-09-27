@@ -40,17 +40,23 @@ What the stage changes, and nothing else does:
 
 | Stage | Canopy height (m) | Canopy width (m) | Alley width (m) |
 |---|---|---|---|
-| `BARE_SOIL` | — (no crop) | — | 1.50 |
-| `EMERGENCE` | 0.10 | 0.12 | 1.38 |
-| `VEGETATIVE` | 0.60 | 0.45 | 1.05 |
-| `CANOPY_CLOSURE` | 1.20 | 0.80 | 0.70 |
-| `SENESCENCE` | 1.10 | 0.70 | 0.80 |
-| `POST_HARVEST` | 0.18 | 0.35 | 1.15 |
+| `BARE_SOIL` | — (no crop) | — | 1.80 |
+| `EMERGENCE` | 0.10 | 0.12 | 1.68 |
+| `VEGETATIVE` | 0.60 | 0.45 | 1.35 |
+| `CANOPY_CLOSURE` | 1.20 | 0.80 | 1.00 |
+| `SENESCENCE` | 1.10 | 0.70 | 1.10 |
+| `POST_HARVEST` | 0.18 | 0.35 | 1.45 |
 
-Row spacing (1.5 m), row count, row length, obstacle placement and lighting are
-identical across stages. The robot is 0.50 m wide over the wheels, so every
-stage including `CANOPY_CLOSURE` leaves the same routes drivable; what changes
-is how much of the alley is left and how much of the scene is canopy.
+Row spacing (1.8 m), row count, row length, obstacle placement and lighting are
+identical across stages. The tractor is 0.72 m wide over its rear tyres, so
+every stage including `CANOPY_CLOSURE` leaves the same routes drivable, with
+0.14 m of clearance each side at the tightest; what changes is how much of the
+alley is left and how much of the scene is canopy.
+
+Spacing was 1.5 m while the robot was a narrow differential drive. The tractor
+does not fit the 0.70 m alley that produced, so the default moved to 1.8 m.
+Any numbers recorded against the old spacing are not comparable with numbers
+recorded against this one.
 
 Other world arguments — `rows`, `row_spacing`, `row_length`, `obstacles` — exist
 for debugging. Changing them changes the world the numbers came from, so leave
@@ -58,14 +64,33 @@ them at their defaults for anything that reaches a paper.
 
 ## The robot
 
-`models/carma_ugv/` is a differential-drive UGV with a stereo pair and a
-co-located depth camera.
+`models/carma_ugv/` is a tractor-style UGV: rear-wheel drive on two large
+wheels, front wheels steered through Ackermann linkage, matching the physical
+platform. It carries a stereo pair and a co-located depth camera.
+
+**It cannot turn on the spot.** That is the single most important consequence
+of the running gear for route design:
+
+```
+minimum turning radius = wheel_base / tan(steering_limit)
+                       = 0.70 / tan(0.70) = 0.83 m
+```
+
+The narrowest alley is 1.00 m at `CANOPY_CLOSURE`, so a U-turn between the rows
+is not available. The vehicle turns at the headland, beyond the end of the
+rows, which is how the real machine is driven. A route that assumes it can
+pivot in place will not execute.
 
 | Quantity | Value |
 |---|---|
-| Wheel radius | 0.100 m |
-| Wheel separation | 0.440 m |
-| Overall width over wheels | 0.500 m |
+| Wheel base (rear axle to front axle) | 0.700 m |
+| Wheel separation (rear track) | 0.600 m |
+| Kingpin width (front track) | 0.520 m |
+| Rear wheel radius, driven | 0.200 m |
+| Front wheel radius, steered | 0.140 m |
+| Steering limit | 0.700 rad (40°) |
+| Minimum turning radius | 0.83 m |
+| Overall width over rear tyres | 0.720 m |
 | **Stereo baseline** | **0.120 m** (left `y = +0.060`, right `y = -0.060`) |
 | Camera height above ground | 0.750 m |
 | Camera pitch | 0.150 rad down |
@@ -87,9 +112,17 @@ The depth camera sits at exactly the left camera's pose and shares its
 intrinsics, so depth is registered to `/carma/stereo/left/image_raw` with no
 reprojection step.
 
-`wheel_separation` and `wheel_radius` in the `DiffDrive` plugin must match the
-wheel link poses. A mismatch is a systematic scale error in `/carma/odom` that
-corrupts every pose-conditioned memory entry without ever looking like a bug.
+`wheel_base`, `wheel_separation`, `kingpin_width` and `wheel_radius` in the
+`AckermannSteering` plugin must match the link poses they describe. A mismatch
+is a systematic scale or heading error in `/carma/odom` that corrupts every
+pose-conditioned memory entry without ever looking like a bug.
+
+The running gear changed from differential drive to Ackermann, but the bridge
+contract did not: `AckermannSteering` consumes the same
+`geometry_msgs/Twist` on `/carma/cmd_vel` and publishes the same
+`nav_msgs/Odometry` on `/carma/odom`. What changed is which commands are
+*achievable* — `angular.z` with `linear.x` near zero no longer turns the
+vehicle, because there is no steering authority without forward motion.
 
 ## Topics
 
@@ -166,6 +199,11 @@ ros2 topic pub -r 10 /carma/cmd_vel geometry_msgs/msg/Twist \
   '{linear: {x: 0.4}, angular: {z: 0.1}}'
 ros2 topic echo /carma/odom --field pose.pose.position
 ```
+
+`linear.x` must be non-zero for `angular.z` to do anything: the steered wheels
+change the vehicle's path, they do not rotate it in place. A command of
+`{linear: {x: 0.0}, angular: {z: 0.5}}` moves nothing, which is correct
+behaviour for this platform and not a fault in the bridge.
 
 ## No Fuel, ever
 

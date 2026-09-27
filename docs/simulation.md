@@ -32,6 +32,14 @@ full geometry — stereo baseline, intrinsics, depth range, wheel parameters —
 tabulated in that package's README; it is not repeated here, so that there is
 one place to change it.
 
+The vehicle is a tractor: rear-wheel drive, Ackermann front steering, matching
+the physical platform. Two things follow that the arbitration study has to
+respect. It cannot turn on the spot — minimum turning radius is 0.83 m against
+a narrowest alley of 1.00 m, so turns happen at the headland. And `angular.z`
+does nothing without `linear.x`, because steering authority comes from forward
+motion. A backbone that emits pivot-in-place actions will appear to fail for
+reasons that have nothing to do with arbitration.
+
 Two things about it are load-bearing for the research design:
 
 **Crop stage is a world argument, not a forked file.** The drift study runs the

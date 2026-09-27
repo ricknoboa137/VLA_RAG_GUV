@@ -19,9 +19,14 @@
   Geometry. Rows run along +x, centred on y = (row - (rows-1)/2) * row_spacing.
   With the defaults below, y = 0 is an alley centre, so a robot spawned at the
   origin facing +x drives down a clear alley at every stage. Row spacing stays
-  fixed across stages; canopy width does not, so the alley narrows from 1.05 m
-  at VEGETATIVE to 0.70 m at CANOPY_CLOSURE. That narrowing is the point of the
+  fixed across stages; canopy width does not, so the alley narrows from 1.35 m
+  at VEGETATIVE to 1.00 m at CANOPY_CLOSURE. That narrowing is the point of the
   stage parameter: the routes are identical and the scene is not.
+
+  Row spacing is 1.8 m because the vehicle is 0.72 m wide over its rear tyres.
+  At the 1.5 m spacing used while the robot was a narrow differential drive,
+  the CANOPY_CLOSURE alley came to 0.70 m and the tractor would not have fitted
+  through the world it is meant to be measured in.
 
   No <include> pulls anything from Fuel. Everything here is inline, because
   AGENTS.md section 2.3 forbids network access at run time.
@@ -31,7 +36,7 @@
   <!-- ==================== world arguments ==================== -->
   <xacro:arg name="stage" default="VEGETATIVE"/>
   <xacro:arg name="rows" default="8"/>
-  <xacro:arg name="row_spacing" default="1.5"/>
+  <xacro:arg name="row_spacing" default="1.8"/>
   <xacro:arg name="row_length" default="24.0"/>
   <xacro:arg name="obstacles" default="true"/>
 
@@ -252,12 +257,12 @@
     <!--
       The robot. Spawned here rather than with ros_gz_sim create, so that a
       world file is a complete description of an episode's starting state.
-      z = 0.10 puts the wheels on the ground; see models/carma_ugv/model.sdf.
+      z = 0.20 puts the rear wheels on the ground; see models/carma_ugv/model.sdf.
     -->
     <include>
       <uri>model://carma_ugv</uri>
       <name>carma_ugv</name>
-      <pose>0 0 0.10 0 0 0</pose>
+      <pose>0 0 0.20 0 0 0</pose>
     </include>
 
   </world>
