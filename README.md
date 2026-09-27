@@ -48,6 +48,23 @@ Every run writes `runs/<run_id>/manifest.yaml` recording config hash, git
 commit, seed, platform and dependency versions. `carma report` refuses to
 aggregate runs whose manifests disagree.
 
+## Run the simulation
+
+A row-crop field with the tractor UGV, in Docker, no hardware required:
+
+```bash
+docker compose -f docker/compose.yaml --profile sim up --build sim
+```
+
+It comes up headless and publishes the robot side of the topic contract —
+stereo pair, depth, odometry — and drives on `/carma/cmd_vel`. Step-by-step
+instructions, including how to drive it, view the cameras and open the Gazebo
+window, are in section 7 of `HOW_TO_USE.md`. The world and robot geometry are
+documented in `ros2_ws/src/carma_sim/README.md`.
+
+The library cannot yet run an episode against it: `GazeboAdapter` and the
+bridge synchroniser are stubs, so experiments still use `sim.kind=synthetic`.
+
 ## Conditions
 
 | Key | What it isolates |
