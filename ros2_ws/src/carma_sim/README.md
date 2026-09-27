@@ -144,6 +144,11 @@ Headless, in the container that already has Gazebo:
 docker compose -f docker/compose.yaml --profile sim up --build sim
 ```
 
+Keep the `--build`. The `sim` service runs the workspace compiled into the
+image, not `ros2_ws/src` on the host, so an edit to the world, the model or the
+relay has no effect until the image is rebuilt — and the service starts and
+publishes happily on the old code, which makes the mistake hard to notice.
+
 Or in any sourced ROS 2 Jazzy environment with `ros_gz` and `xacro` installed:
 
 ```bash

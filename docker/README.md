@@ -43,6 +43,21 @@ mounted, so host edits are visible; run `colcon build` in the shell to pick up
 node changes. The `vision` service mounts `configs/` and `assets/`, so a new
 analyzer config or ONNX model needs a restart, not a rebuild.
 
+**`shell` is the exception, not the rule.** Every other service — `sim`,
+`bridge`, `vision` — runs the workspace that was compiled into the image, not
+`ros2_ws/src` on the host. That is deliberate: a run should execute the code of
+a known commit rather than whatever happens to be on disk. The cost is that
+editing anything under `ros2_ws/src` has no effect on those services until you
+rebuild:
+
+```bash
+docker compose -f docker/compose.yaml build sim
+```
+
+The failure mode is quiet. The service starts, publishes, and looks healthy
+while running the previous version of the code, so verify a change against the
+service you actually ship — not only in `shell`, where the mount hides it.
+
 Watch the MQTT output from any machine on the network (host `broker` inside
 compose, the Docker host's IP from outside):
 
