@@ -68,6 +68,32 @@ them at their defaults for anything that reaches a paper.
 wheels, front wheels steered through Ackermann linkage, matching the physical
 platform. It carries a stereo pair and a co-located depth camera.
 
+### Body shape
+
+The hull is modelled on the physical machine: a flat aluminium deck, a raised
+rear housing carrying the emergency stop, a sloped nose down to the bonnet, a
+tubular front guard, mudguards over the driven rear wheels, a GNSS puck on a
+short mast, a radio whip, and the stereo pair on a pan housing above the
+bonnet. Wheels have inset rims so they read as tyres on wheels.
+
+All of that is **visual only**. Collision is still the two boxes it always was,
+and mass and inertia are untouched, so reshaping the body changed no dynamics:
+drive and odometry numbers stay comparable with runs recorded before it. The
+alley clearance is set by the rear tyres at 0.72 m, which is wider than any
+part of the body, so nothing on the hull decides whether the machine fits.
+
+The GNSS mast and antenna carry no sensor — there is no GNSS topic in the
+bridge contract. They exist so the machine is recognisable in the viewport and
+in screenshots, nothing more.
+
+**No part of the robot appears in its own camera images.** The mast and whip
+sit 0.58 m behind the camera, and the front guard, at 0.28 m ahead and 0.19 m
+off the ground, falls below the bottom of the frame — the view at that range
+starts 0.57 m up. So the body shape does not enter the perception path, and a
+simulated frame is not directly comparable with a field photograph taken from
+a camera that does see its own bonnet. If self-occlusion matters later, it has
+to be arranged deliberately by moving the camera back or down.
+
 **It cannot turn on the spot.** That is the single most important consequence
 of the running gear for route design:
 

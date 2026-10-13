@@ -64,34 +64,157 @@
         </inertia>
       </inertial>
 
-      <!-- Main body, over the rear axle where the mass sits on a tractor. -->
+      <!--
+        Collision stays two plain boxes. The shape below is built from many
+        visual-only pieces to match the photographed platform, and deliberately
+        does not touch collision, mass or inertia: the alley clearance is set
+        by the rear tyres at 0.72 m, wider than any of this, and leaving the
+        physics alone keeps drive and odometry numbers comparable with runs
+        recorded before the body was reshaped.
+      -->
       <collision name="body_collision">
         <pose>0.18 0 0.16 0 0 0</pose>
         <geometry><box><size>0.52 0.42 0.30</size></box></geometry>
       </collision>
-      <visual name="body_visual">
-        <pose>0.18 0 0.16 0 0 0</pose>
-        <geometry><box><size>0.52 0.42 0.30</size></box></geometry>
-        <material>
-          <ambient>0.28 0.29 0.31 1</ambient>
-          <diffuse>0.62 0.64 0.67 1</diffuse>
-          <specular>0.30 0.30 0.30 1</specular>
-        </material>
-      </visual>
-
-      <!-- Bonnet, lower and narrower, carrying the camera mount. -->
       <collision name="hood_collision">
         <pose>0.58 0 0.10 0 0 0</pose>
         <geometry><box><size>0.34 0.30 0.18</size></box></geometry>
       </collision>
+
+      <!-- Lower deck: the flat aluminium tub the whole machine is built on. -->
+      <visual name="deck_visual">
+        <pose>0.18 0 0.10 0 0 0</pose>
+        <geometry><box><size>0.52 0.42 0.18</size></box></geometry>
+        <material>
+          <ambient>0.30 0.31 0.33 1</ambient>
+          <diffuse>0.68 0.70 0.73 1</diffuse>
+          <specular>0.45 0.45 0.45 1</specular>
+        </material>
+      </visual>
+
+      <!-- Raised rear housing, where the electronics and the e-stop sit. -->
+      <visual name="rear_housing_visual">
+        <pose>0.06 0 0.26 0 0 0</pose>
+        <geometry><box><size>0.28 0.42 0.14</size></box></geometry>
+        <material>
+          <ambient>0.28 0.29 0.31 1</ambient>
+          <diffuse>0.64 0.66 0.69 1</diffuse>
+          <specular>0.45 0.45 0.45 1</specular>
+        </material>
+      </visual>
+
+      <!-- Sloped nose between the rear housing and the bonnet. -->
+      <visual name="nose_slope_visual">
+        <pose>0.33 0 0.25 0 0.62 0</pose>
+        <geometry><box><size>0.30 0.40 0.04</size></box></geometry>
+        <material>
+          <ambient>0.31 0.32 0.34 1</ambient>
+          <diffuse>0.70 0.72 0.75 1</diffuse>
+          <specular>0.50 0.50 0.50 1</specular>
+        </material>
+      </visual>
+
+      <!-- Bonnet. -->
       <visual name="hood_visual">
         <pose>0.58 0 0.10 0 0 0</pose>
         <geometry><box><size>0.34 0.30 0.18</size></box></geometry>
         <material>
           <ambient>0.30 0.31 0.33 1</ambient>
-          <diffuse>0.66 0.68 0.70 1</diffuse>
-          <specular>0.30 0.30 0.30 1</specular>
+          <diffuse>0.70 0.72 0.75 1</diffuse>
+          <specular>0.50 0.50 0.50 1</specular>
         </material>
+      </visual>
+
+      <!--
+        Tubular front guard. Visual only: giving it collision would make the
+        machine longer than its documented footprint without that length
+        appearing in any table.
+      -->
+      <visual name="guard_rail_left">
+        <pose>0.76 0.16 -0.01 0 1.5707963 0</pose>
+        <geometry><cylinder><radius>0.018</radius><length>0.26</length></cylinder></geometry>
+        <material><ambient>0.06 0.06 0.06 1</ambient><diffuse>0.18 0.18 0.18 1</diffuse></material>
+      </visual>
+      <visual name="guard_rail_right">
+        <pose>0.76 -0.16 -0.01 0 1.5707963 0</pose>
+        <geometry><cylinder><radius>0.018</radius><length>0.26</length></cylinder></geometry>
+        <material><ambient>0.06 0.06 0.06 1</ambient><diffuse>0.18 0.18 0.18 1</diffuse></material>
+      </visual>
+      <visual name="guard_cross">
+        <pose>0.88 0 -0.01 1.5707963 0 0</pose>
+        <geometry><cylinder><radius>0.018</radius><length>0.32</length></cylinder></geometry>
+        <material><ambient>0.06 0.06 0.06 1</ambient><diffuse>0.18 0.18 0.18 1</diffuse></material>
+      </visual>
+      <visual name="guard_upright_left">
+        <pose>0.64 0.16 0.02 0 0 0</pose>
+        <geometry><cylinder><radius>0.018</radius><length>0.10</length></cylinder></geometry>
+        <material><ambient>0.06 0.06 0.06 1</ambient><diffuse>0.18 0.18 0.18 1</diffuse></material>
+      </visual>
+      <visual name="guard_upright_right">
+        <pose>0.64 -0.16 0.02 0 0 0</pose>
+        <geometry><cylinder><radius>0.018</radius><length>0.10</length></cylinder></geometry>
+        <material><ambient>0.06 0.06 0.06 1</ambient><diffuse>0.18 0.18 0.18 1</diffuse></material>
+      </visual>
+
+      <!-- Mudguards over the driven rear wheels. -->
+      <visual name="mudguard_left">
+        <pose>0 0.30 0.23 0 0 0</pose>
+        <geometry><box><size>0.46 0.16 0.03</size></box></geometry>
+        <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.16 0.16 0.16 1</diffuse></material>
+      </visual>
+      <visual name="mudguard_right">
+        <pose>0 -0.30 0.23 0 0 0</pose>
+        <geometry><box><size>0.46 0.16 0.03</size></box></geometry>
+        <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.16 0.16 0.16 1</diffuse></material>
+      </visual>
+
+      <!--
+        GNSS antenna. Visual only - there is no GNSS topic in the bridge
+        contract, so nothing reads a pose from it. It is here because the mast
+        occludes part of the right camera's view of the sky, and a reader
+        comparing the simulated image with a field photograph should see the
+        same obstruction rather than wonder where it went.
+      -->
+      <visual name="gnss_mast">
+        <pose>0.02 0.12 0.44 0 0 0</pose>
+        <geometry><cylinder><radius>0.012</radius><length>0.22</length></cylinder></geometry>
+        <material><ambient>0.35 0.35 0.35 1</ambient><diffuse>0.72 0.72 0.72 1</diffuse></material>
+      </visual>
+      <visual name="gnss_puck">
+        <pose>0.02 0.12 0.57 0 0 0</pose>
+        <geometry><cylinder><radius>0.055</radius><length>0.04</length></cylinder></geometry>
+        <material><ambient>0.60 0.60 0.60 1</ambient><diffuse>0.92 0.92 0.92 1</diffuse></material>
+      </visual>
+
+      <!-- Radio whip. -->
+      <visual name="radio_whip">
+        <pose>0.02 -0.12 0.56 0 0 0</pose>
+        <geometry><cylinder><radius>0.005</radius><length>0.46</length></cylinder></geometry>
+        <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.15 0.15 0.15 1</diffuse></material>
+      </visual>
+
+      <!-- Emergency stop, on the rear housing where a hand can reach it. -->
+      <visual name="estop_body">
+        <pose>0.14 0 0.34 0 0 0</pose>
+        <geometry><cylinder><radius>0.035</radius><length>0.03</length></cylinder></geometry>
+        <material><ambient>0.45 0.40 0.05 1</ambient><diffuse>0.90 0.80 0.10 1</diffuse></material>
+      </visual>
+      <visual name="estop_button">
+        <pose>0.14 0 0.37 0 0 0</pose>
+        <geometry><cylinder><radius>0.028</radius><length>0.03</length></cylinder></geometry>
+        <material><ambient>0.45 0.03 0.03 1</ambient><diffuse>0.85 0.08 0.08 1</diffuse></material>
+      </visual>
+
+      <!-- Camera mast and pan housing, carrying camera_link above the bonnet. -->
+      <visual name="camera_mast">
+        <pose>0.60 0 0.36 0 0 0</pose>
+        <geometry><cylinder><radius>0.022</radius><length>0.34</length></cylinder></geometry>
+        <material><ambient>0.30 0.30 0.30 1</ambient><diffuse>0.66 0.66 0.66 1</diffuse></material>
+      </visual>
+      <visual name="camera_pan_housing">
+        <pose>0.60 0 0.50 0 0 0</pose>
+        <geometry><box><size>0.09 0.09 0.06</size></box></geometry>
+        <material><ambient>0.25 0.25 0.25 1</ambient><diffuse>0.58 0.58 0.58 1</diffuse></material>
       </visual>
 
       <!-- Front axle beam. Visual only; the kingpins carry the wheels. -->
@@ -212,6 +335,16 @@
           <diffuse>0.09 0.09 0.09 1</diffuse>
         </material>
       </visual>
+      <!-- Rim, inset so the tyre shoulder still reads as the outer surface. -->
+      <visual name="rim">
+        <pose>0 0 0.005 0 0 0</pose>
+        <geometry><cylinder><radius>0.115</radius><length>0.125</length></cylinder></geometry>
+        <material>
+          <ambient>0.34 0.34 0.36 1</ambient>
+          <diffuse>0.74 0.75 0.77 1</diffuse>
+          <specular>0.5 0.5 0.5 1</specular>
+        </material>
+      </visual>
     </link>
 
     <link name="rear_right_wheel_link">
@@ -237,6 +370,16 @@
         <material>
           <ambient>0.03 0.03 0.03 1</ambient>
           <diffuse>0.09 0.09 0.09 1</diffuse>
+        </material>
+      </visual>
+      <!-- Rim, inset so the tyre shoulder still reads as the outer surface. -->
+      <visual name="rim">
+        <pose>0 0 0.005 0 0 0</pose>
+        <geometry><cylinder><radius>0.115</radius><length>0.125</length></cylinder></geometry>
+        <material>
+          <ambient>0.34 0.34 0.36 1</ambient>
+          <diffuse>0.74 0.75 0.77 1</diffuse>
+          <specular>0.5 0.5 0.5 1</specular>
         </material>
       </visual>
     </link>
@@ -352,6 +495,15 @@
           <diffuse>0.09 0.09 0.09 1</diffuse>
         </material>
       </visual>
+      <visual name="rim">
+        <pose>0 0 0.004 0 0 0</pose>
+        <geometry><cylinder><radius>0.082</radius><length>0.074</length></cylinder></geometry>
+        <material>
+          <ambient>0.34 0.34 0.36 1</ambient>
+          <diffuse>0.74 0.75 0.77 1</diffuse>
+          <specular>0.5 0.5 0.5 1</specular>
+        </material>
+      </visual>
     </link>
 
     <link name="front_right_wheel_link">
@@ -377,6 +529,15 @@
         <material>
           <ambient>0.03 0.03 0.03 1</ambient>
           <diffuse>0.09 0.09 0.09 1</diffuse>
+        </material>
+      </visual>
+      <visual name="rim">
+        <pose>0 0 0.004 0 0 0</pose>
+        <geometry><cylinder><radius>0.082</radius><length>0.074</length></cylinder></geometry>
+        <material>
+          <ambient>0.34 0.34 0.36 1</ambient>
+          <diffuse>0.74 0.75 0.77 1</diffuse>
+          <specular>0.5 0.5 0.5 1</specular>
         </material>
       </visual>
     </link>
