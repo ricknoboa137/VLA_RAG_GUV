@@ -34,3 +34,20 @@ jobs:
 
       - name: Dependency pin gate
         run: python scripts/check_pins.py
+
+  # The path a colleague actually uses. Without this job the shareable image
+  # is only ever tested by hand, and the locks drift from pyproject.toml
+  # unnoticed.
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the library and dev images
+        run: docker compose -f docker/compose.yaml build lib check
+
+      - name: Every gate, inside the image
+        run: docker compose -f docker/compose.yaml run --rm check
+
+      - name: A real experiment, inside the image
+        run: docker compose -f docker/compose.yaml run --rm lib carma run --config configs/experiment/smoke.yaml --seed 0

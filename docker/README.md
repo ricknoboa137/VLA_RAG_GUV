@@ -6,10 +6,69 @@ are baked in, so a new machine needs only Docker and this repository.
 
 | Image | Target | Contains |
 |---|---|---|
+| `carma-lib:0.1.0` | `lib` | **The Python library and CLI only.** No ROS. Start here. |
+| `carma-dev:0.1.0` | `dev` | `lib` plus ruff, mypy and pytest, to run the gates |
 | `carma-ros:jazzy` | `base` | ROS 2 Jazzy, carma library, `carma_bridge`, `carma_vision`, `carma_sim` |
 | `carma-ros-sim:jazzy` | `sim` | `base` plus Gazebo Harmonic (`ros_gz`) |
 
 Plus `eclipse-mosquitto:2` as the MQTT broker.
+
+## Sharing the library with a colleague
+
+They need Docker and this repository. Nothing else: no Python, no conda, no
+ROS.
+
+```bash
+git clone <this repo> && cd VLA_RAG_GUV
+make docker-build     # builds carma-lib and carma-dev
+make docker-check     # lint, types, 145 tests, pin gate — inside the image
+make docker-smoke     # a real experiment; writes to ./runs on the host
+```
+
+`make docker-check` runs the same `Makefile` the maintainers run locally, so
+there is one definition of what "passing" means rather than two that can
+drift.
+
+### What makes it reproducible
+
+Pinning the direct dependencies is not enough. Four things were missing and
+are now in place:
+
+- **The transitive dependencies are locked.** `pyproject.toml` pins what this
+  project chooses; `requirements-lib.lock` and `requirements-dev.lock` pin
+  everything those pull in, resolved on linux/amd64 for CPython 3.11. The
+  install uses `--no-deps`, so the resolver cannot add anything the lock does
+  not name. Without this, `packaging`, `rich` and `Pygments` floated to
+  whatever was newest on build day.
+- **The base image is pinned by digest**, not by the `python:3.11-slim-bookworm`
+  tag, which upstream rebuilds. A tag means the same Dockerfile yields a
+  different image next month. Regenerate both with `make lock` after changing
+  `pyproject.toml`.
+- **The build fails rather than ships a broken library.** The image runs
+  `carma components` and imports the CLI at build time. The ROS image installs
+  the library with `--no-deps` on purpose, so its CLI dependencies are absent
+  there; that is fine for running nodes and useless for running experiments,
+  which is why `lib` exists separately.
+- **The build context is 2.9 MB.** It was 9.9 GB, because `.dockerignore` did
+  not exclude the Unity project's 57,000 files.
+
+### Results match across platforms
+
+The same experiment, same seed, run in the Linux container and on a Windows
+host, produced the same config hash and byte-identical decision logs. A
+result from a colleague's container is therefore comparable with one from
+this machine — and each manifest records its platform, so if that ever stops
+being true it is visible rather than silent.
+
+Re-check it after any dependency change:
+
+```bash
+make docker-smoke
+carma run --config configs/experiment/smoke.yaml --seed 0   # on the host
+```
+
+Then compare `decisions.jsonl` between the two runs, ignoring `run_id` and
+`timestamp`.
 
 ## Prerequisites
 

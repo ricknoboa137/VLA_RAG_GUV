@@ -97,6 +97,31 @@ services:
       - ../configs:/opt/carma/configs:ro
       - ../ros2_ws/src:/ros2_ws/src
 
+  # The Python library alone, no ROS. What a colleague needs to run an
+  # experiment: docker compose -f docker/compose.yaml run --rm lib   #   carma run --config configs/experiment/smoke.yaml --seed 0
+  lib:
+    image: carma-lib:0.1.0
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: lib
+    volumes:
+      # Runs land on the host so results survive the container.
+      - ../runs:/opt/carma/runs
+      - ../configs:/opt/carma/configs:ro
+      - ../assets:/opt/carma/assets:ro
+    restart: "no"
+
+  # The library plus the gate tools. "docker compose run --rm check" runs the
+  # same lint, types, tests and pin check a colleague runs locally.
+  check:
+    image: carma-dev:0.1.0
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: dev
+    restart: "no"
+
   # Stereo camera driver: add once the camera model is chosen. It must publish
   # bgr8 images on the topics named in carma_vision/config/vision.yaml.
   # camera:

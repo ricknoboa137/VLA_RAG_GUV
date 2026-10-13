@@ -96,6 +96,11 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# The repository root on sys.path, so "from tests.conftest import ..." works.
+# Without it the suite passes under "python -m pytest", which adds the working
+# directory itself, and fails under a bare "pytest" - which is what the
+# Makefile, CI and the container all run.
+pythonpath = ["."]
 markers = [
   "sim: requires a running simulator; excluded from the default run",
   "slow: takes more than a few seconds",

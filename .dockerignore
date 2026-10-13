@@ -1,3 +1,6 @@
+# Keep the build context small. Everything here is either large, generated, or
+# irrelevant to an image. The Unity project alone is ~9.7 GB across 57,000
+# files and was being sent to the daemon on every build.
 .git
 .github
 .venv
@@ -12,3 +15,13 @@ assets
 ros2_ws/build
 ros2_ws/install
 ros2_ws/log
+
+# The Quest client: a Unity project, no part of any image.
+vr
+
+# Meeting decks and their media, kept beside the project but never shipped.
+presentations
+
+# Stereo captures and point clouds written by the scripts.
+stereo_out
+*.ply
