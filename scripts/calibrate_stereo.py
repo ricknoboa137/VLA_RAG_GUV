@@ -59,9 +59,12 @@ def _capture_disparity(
     cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-    # Discard the first frames: exposure and gain are still settling.
-    for _ in range(15):
-        cap.read()
+    # Discard frames until exposure and gain settle; this camera needs about
+    # 40, and a short warm-up measures a black frame that matches nothing.
+    for _ in range(45):
+        ok, probe = cap.read()
+        if ok and float(probe.mean()) >= 20.0:
+            break
 
     values: list[float] = []
     eye_size = (0, 0)

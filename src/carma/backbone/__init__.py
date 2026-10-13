@@ -10,5 +10,6 @@ from __future__ import annotations
 
 from carma.backbone.heuristic import HeuristicBackbone
 from carma.backbone.registry import BACKBONES
+from carma.backbone.remote import RemoteBackbone
 
-__all__ = ["BACKBONES", "HeuristicBackbone"]
+__all__ = ["BACKBONES", "HeuristicBackbone", "RemoteBackbone"]

@@ -27,6 +27,7 @@ from carma.types.core import (
 )
 from carma.types.errors import (
     AnalyzerError,
+    BackboneError,
     CarmaError,
     ConfigError,
     DeterminismError,
@@ -51,6 +52,7 @@ __all__ = [
     "Action",
     "AnalysisResult",
     "AnalyzerError",
+    "BackboneError",
     "Arbiter",
     "CarmaError",
     "Choice",

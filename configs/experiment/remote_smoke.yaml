@@ -1,0 +1,66 @@
+# The smoke experiment with the policy served from another process.
+# Needs a server first:
+#
+#   python scripts/policy_server.py --policy echo --self-check
+#
+# Not run by CI: the suite must stay offline, so the transport is tested
+# with an in-process fake in tests/test_remote_backbone.py instead. This
+# config is what proves the real socket path before an experiment.
+name: remote_smoke
+condition: carma
+seed: 0
+episodes: 3
+
+backbone:
+  kind: remote
+  params:
+    url: http://127.0.0.1:8000/act
+    timeout_s: 10.0
+    # Chunks the server draws per step; their spread becomes the uncertainty.
+    samples: 4
+    send_depth: false
+    send_right: false
+
+embedder:
+  kind: hashing
+  params:
+    dim: 256
+
+store:
+  kind: in_memory
+
+retriever:
+  kind: similarity
+  params:
+    min_score: 0.15
+
+hygiene:
+  kind: stage_decay
+
+cost_model:
+  kind: linear
+  params:
+    recovery_s: 45.0
+    retrieval_s: 0.12
+    operator_s: 20.0
+    retrieval_efficacy: 0.6
+    ask_efficacy: 0.95
+
+arbiter:
+  kind: cost_aware
+  params:
+    probe_k: 3
+    ask_budget: 10
+
+operator:
+  kind: scripted
+  params:
+    mean_latency_s: 18.0
+    correction_rate: 0.08
+    seed: 0
+
+sim:
+  kind: synthetic
+  params:
+    dt: 0.1
+    stage: VEGETATIVE
