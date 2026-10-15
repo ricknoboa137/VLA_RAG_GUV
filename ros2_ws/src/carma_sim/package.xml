@@ -8,6 +8,14 @@
 
   <depend>ros_gz_sim</depend>
   <depend>ros_gz_bridge</depend>
+  <!-- worlds/row_crop.sdf is a template; the launch file expands it by stage. -->
+  <exec_depend>xacro</exec_depend>
+  <!-- scripts/bgr_relay.py: rgb8 -> bgr8 for the stereo pair. -->
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

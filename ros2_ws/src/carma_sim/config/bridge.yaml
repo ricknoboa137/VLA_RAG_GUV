@@ -1,0 +1,85 @@
+# ros_gz_bridge parameter_bridge configuration for the row-crop world.
+#
+# Every entry here exists to satisfy the topic contract in
+# ros2_ws/src/carma_bridge/README.md. The Gazebo topic names are set to the ROS
+# names in models/carma_ugv/model.sdf and worlds/row_crop.sdf, so this file is a
+# one-to-one mapping with no renaming: a mismatch is a typo in one of the three
+# files, not a remap.
+#
+# Changing a name or a type here is a breaking change to the contract and must
+# be made in carma_bridge/README.md and src/carma/sim/gazebo.py in the same
+# commit.
+
+# --- bridge -> robot ---------------------------------------------------------
+- ros_topic_name: "/carma/cmd_vel"
+  gz_topic_name: "/carma/cmd_vel"
+  ros_type_name: "geometry_msgs/msg/Twist"
+  gz_type_name: "gz.msgs.Twist"
+  direction: ROS_TO_GZ
+
+# --- robot -> bridge ---------------------------------------------------------
+# The stereo pair lands on .../image_rgb, not the contract's .../image_raw.
+# Gazebo's ogre2 render path cannot produce BGR, so these carry rgb8, and
+# scripts/bgr_relay.py swaps the channels onto .../image_raw. See that file for
+# why the swap is not optional.
+- ros_topic_name: "/carma/stereo/left/image_rgb"
+  gz_topic_name: "/carma/stereo/left/image_rgb"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "/carma/stereo/right/image_rgb"
+  gz_topic_name: "/carma/stereo/right/image_rgb"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
+  direction: GZ_TO_ROS
+
+# 32FC1 in metres: the Gazebo depth camera renders R_FLOAT32 and ros_gz maps it
+# straight through, so no unit conversion happens anywhere in this path.
+- ros_topic_name: "/carma/camera/depth"
+  gz_topic_name: "/carma/camera/depth"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "/carma/odom"
+  gz_topic_name: "/carma/odom"
+  ros_type_name: "nav_msgs/msg/Odometry"
+  gz_type_name: "gz.msgs.Odometry"
+  direction: GZ_TO_ROS
+
+# --- not in the contract, but needed to use the images -----------------------
+# Intrinsics, so a consumer does not have to hard-code the numbers documented in
+# models/carma_ugv/model.sdf.
+- ros_topic_name: "/carma/stereo/left/camera_info"
+  gz_topic_name: "/carma/stereo/left/camera_info"
+  ros_type_name: "sensor_msgs/msg/CameraInfo"
+  gz_type_name: "gz.msgs.CameraInfo"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "/carma/stereo/right/camera_info"
+  gz_topic_name: "/carma/stereo/right/camera_info"
+  ros_type_name: "sensor_msgs/msg/CameraInfo"
+  gz_type_name: "gz.msgs.CameraInfo"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "/carma/camera/depth/camera_info"
+  gz_topic_name: "/carma/camera/depth/camera_info"
+  ros_type_name: "sensor_msgs/msg/CameraInfo"
+  gz_type_name: "gz.msgs.CameraInfo"
+  direction: GZ_TO_ROS
+
+# Simulation time. Without this, use_sim_time on any ROS node is a lie and the
+# approximate-time synchroniser in carma_bridge matches on wall clock.
+- ros_topic_name: "/clock"
+  gz_topic_name: "/clock"
+  ros_type_name: "rosgraph_msgs/msg/Clock"
+  gz_type_name: "gz.msgs.Clock"
+  direction: GZ_TO_ROS
+
+# Wheel state, for diagnosing a drive that reports motion it did not make.
+- ros_topic_name: "/carma/joint_states"
+  gz_topic_name: "/carma/joint_states"
+  ros_type_name: "sensor_msgs/msg/JointState"
+  gz_type_name: "gz.msgs.Model"
+  direction: GZ_TO_ROS

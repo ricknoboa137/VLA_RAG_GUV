@@ -1,9 +1,12 @@
 # How to use CARMA
 
 A step-by-step guide to running the system on a development PC: the ROS 2
-containers, the camera stream with live analysis, operator speech, and the Meta
-Quest 2 client. For what the project is and its design rules, see `README.md`
-and `AGENTS.md`.
+containers, the camera stream with live analysis, operator speech, the Meta
+Quest 2 client, and the Gazebo simulation. For what the project is and its
+design rules, see `README.md` and `AGENTS.md`.
+
+If you have no hardware to hand, start at section 7: the simulation needs only
+Docker and shows the robot side of the system working end to end.
 
 ```
  webcam / stereo camera ──► ROS 2 vision container ──► analysis results + stereo stream ──┐
@@ -157,7 +160,116 @@ Full guide: `vr/unity/README.md`. In short:
 The Quest and the broker must be on the same network, and Windows Firewall must
 allow `mosquitto.exe` inbound.
 
-## 7. Quick troubleshooting
+## 7. Gazebo simulation
+
+A row-crop field with the tractor UGV driving in it. Nothing here needs a
+camera, a microphone or a headset — it is the cheapest way to see the robot
+side of the topic contract working.
+
+### Start it
+
+```bash
+docker compose -f docker/compose.yaml --profile sim up --build sim
+```
+
+Keep `--build`. The `sim` service runs the ROS workspace compiled into the
+image, not `ros2_ws/src` on your disk, so edits to the world or the robot have
+no effect until the image is rebuilt — and the service starts happily on the
+old code, which makes that mistake easy to miss.
+
+This is headless: there is no window, and the first start takes a few minutes
+because it installs Gazebo Harmonic.
+
+### Check it is alive
+
+In a second terminal:
+
+```bash
+docker compose -f docker/compose.yaml run --rm shell
+```
+
+Inside that shell:
+
+```bash
+ros2 topic hz /carma/stereo/left/image_raw /carma/camera/depth /carma/odom
+```
+
+Expect roughly 10 Hz on the cameras and 20 Hz on odometry on a PC without a
+GPU; nominal is 15 and 30, and the shortfall is software rendering, not a
+fault.
+
+### Drive it
+
+```bash
+ros2 topic pub -r 20 /carma/cmd_vel geometry_msgs/msg/Twist \
+  '{linear: {x: 0.6}, angular: {z: 0.0}}'
+```
+
+| `linear.x` | `angular.z` | Result |
+|---|---|---|
+| `0.6` | `0.0` | Straight down the alley |
+| `0.6` | `0.4` | Forward, curving left |
+| `0.6` | `-0.4` | Forward, curving right |
+| `-0.4` | `0.0` | Reverse |
+| `0.0` | `0.5` | **Nothing.** No steering without forward motion |
+
+The vehicle is a tractor: rear-wheel drive, Ackermann front steering. It cannot
+turn on the spot, and its minimum turning radius of 0.83 m is wider than the
+alley, so it turns at the headland. Watch the pose respond:
+
+```bash
+ros2 topic echo /carma/odom --field pose.pose.position
+```
+
+There is no episode reset yet, so if you drive into a crop row the only way
+back to the start line is to restart the service.
+
+### Change the crop stage
+
+The drift study runs the same routes at two phenological stages. The stage is
+one recorded world argument, not a second copy of the world file:
+
+```bash
+docker compose -f docker/compose.yaml --profile sim run --rm sim \
+  ros2 launch carma_sim row_crop.launch.py stage:=CANOPY_CLOSURE
+```
+
+Valid names are those of `carma.types.PhenologyStage`. A typo fails the launch
+rather than quietly rendering the default stage.
+
+### See it, with a window
+
+The GUI needs a display, which the container does not have by default. On
+Windows 11 the WSLg X server can be passed through — note this is a plain
+`docker run`, not compose, and it renders in software:
+
+```bash
+docker run -d --name carma_gui --ipc host --network carma_default \
+  -e DISPLAY=:0 -e LIBGL_ALWAYS_SOFTWARE=1 -e ROS_DOMAIN_ID=42 \
+  -v /run/desktop/mnt/host/wslg:/mnt/wslg \
+  -v /run/desktop/mnt/host/wslg/.X11-unix:/tmp/.X11-unix \
+  carma-ros-sim:jazzy ros2 launch carma_sim row_crop.launch.py headless:=false
+```
+
+On Linux, `-e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix` is enough.
+
+In the Gazebo window, the **⋮** menu at the top right adds panels:
+
+- **Image Display** → topic `/carma/stereo/left/image_rgb` shows the camera.
+  Gazebo lists its own topic names, so it is `image_rgb` here; `image_raw` is
+  the ROS-side name the `bgr_relay` node publishes after converting to `bgr8`.
+- **Teleop** → topic `/carma/cmd_vel` drives it with the arrow keys. Hold
+  forward together with a turn; turning alone does nothing.
+
+Close it with `docker rm -f carma_gui`.
+
+### Stop it
+
+```bash
+docker compose -f docker/compose.yaml --profile sim down
+```
+
+## 8. Quick troubleshooting
 
 | Symptom | Fix |
 |---|---|
@@ -167,12 +279,18 @@ allow `mosquitto.exe` inbound.
 | Wrong language or nonsense text | Use `--mode ptt`; set `STT_LANGUAGE=en` or `es` |
 | Low camera frame rate in ROS | The image ships `docker/fastdds_shm.xml`; keep `ipc: host` on ROS services |
 | Quest: `broker connection failed` | Same Wi-Fi as the broker, correct address, firewall rule |
+| Sim: edits to the world do nothing | Only `shell` mounts `ros2_ws/src`; rebuild with `docker compose -f docker/compose.yaml build sim` |
+| Sim: `angular.z` does not turn the robot | It is Ackermann-steered; `linear.x` must be non-zero |
+| Sim: robot stuck in the crop | No episode reset yet; restart the `sim` service |
+| Sim: no Gazebo window | Headless by default; see section 7 for the WSLg/X11 route |
 
 ## Where to read more
 
 | Topic | File |
 |---|---|
 | Architecture and module rules | `docs/architecture.md`, `AGENTS.md` |
+| Simulation design and adapters | `docs/simulation.md` |
+| World, robot geometry, sensor intrinsics | `ros2_ws/src/carma_sim/README.md` |
 | Cost model (act / retrieve / ask) | `docs/cost-model.md` |
 | Running experiments | `docs/experiments.md` |
 | Data formats | `docs/data-schema.md` |
