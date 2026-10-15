@@ -200,4 +200,6 @@ Linux host, add `network_mode: host` to the service instead.
 
 - The stereo camera driver, pending the camera choice. See the commented
   `camera` service in `compose.yaml`.
-- Gazebo worlds (WP1). The `sim` profile builds the image but runs nothing.
+- The link from the simulator to experiments. The `sim` profile runs the
+  row-crop world and publishes the topic contract, but `carma_bridge` does not
+  yet turn those topics into observations for `carma run`.

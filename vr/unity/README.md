@@ -50,9 +50,9 @@ Android build target:
 - All 25 asset references in `SampleScene` resolve (Oculus prefabs map to the
   same GUIDs in the Meta XR packages, or to `Assets/LegacyOVR/`).
 
-Not yet done, needs the editor or the headset: adding the `CarmaVoice`
-component to the scene, running Meta's Project Setup Tool, and a build to the
-Quest 2.
+Since then the `CarmaVoice` component has been added to the scene, and the app
+has been built and run on a Quest 2 with video (mono and stereo) and speech
+working.
 
 ## What is in the scene
 
@@ -127,14 +127,14 @@ feed.
 
 - **`CarmaVoice`** (root object) with the *Carma Voice* component: **Broker
   Address** `192.168.0.153` (the development PC on the home Wi-Fi), **Broker
-  Port** `1883`, **Auto Connect** on, talk button **B**. Change the address to
-  the robot's broker on the robot network; it may differ from the video
-  receiver's broker (`10.169.15.27` in the scene).
+  Port** `1883`, **Auto Connect** on, talk button **B**. The video receiver,
+  `mqttReceiver`, has its own **Broker Address**, also `192.168.0.153`. On
+  another network, change both to that network's broker.
 - **`CarmaVoiceStatus`** under `OVRCameraRig/.../CenterEyeAnchor`: a small
   world-space panel 1.2 m ahead and slightly below eye level, linked as the
   component's **Status Label**, showing `listening…`, `transcribing…` and the
   result.
-4. Microphone permission is already declared in
+- Microphone permission is already declared in
    `Assets/Plugins/Android/AndroidManifest.xml`
    (`android.permission.RECORD_AUDIO`). Accept the prompt in the headset on
    first launch.
