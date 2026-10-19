@@ -83,3 +83,63 @@
   ros_type_name: "sensor_msgs/msg/JointState"
   gz_type_name: "gz.msgs.Model"
   direction: GZ_TO_ROS
+
+# --- SO-101 follower arm, present only when the world is expanded with arm:=true
+# Not in the contract: nothing in the CARMA library reads or commands the arm.
+# Bridging a topic no model publishes is harmless, so these entries stay in the
+# one file whether or not the arm is spawned. Angles in radians.
+- ros_topic_name: "/carma/arm/joint_states"
+  gz_topic_name: "/carma/arm/joint_states"
+  ros_type_name: "sensor_msgs/msg/JointState"
+  gz_type_name: "gz.msgs.Model"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "/carma/arm/shoulder_pan/cmd_pos"
+  gz_topic_name: "/carma/arm/shoulder_pan/cmd_pos"
+  ros_type_name: "std_msgs/msg/Float64"
+  gz_type_name: "gz.msgs.Double"
+  direction: ROS_TO_GZ
+
+- ros_topic_name: "/carma/arm/shoulder_lift/cmd_pos"
+  gz_topic_name: "/carma/arm/shoulder_lift/cmd_pos"
+  ros_type_name: "std_msgs/msg/Float64"
+  gz_type_name: "gz.msgs.Double"
+  direction: ROS_TO_GZ
+
+- ros_topic_name: "/carma/arm/elbow_flex/cmd_pos"
+  gz_topic_name: "/carma/arm/elbow_flex/cmd_pos"
+  ros_type_name: "std_msgs/msg/Float64"
+  gz_type_name: "gz.msgs.Double"
+  direction: ROS_TO_GZ
+
+- ros_topic_name: "/carma/arm/wrist_flex/cmd_pos"
+  gz_topic_name: "/carma/arm/wrist_flex/cmd_pos"
+  ros_type_name: "std_msgs/msg/Float64"
+  gz_type_name: "gz.msgs.Double"
+  direction: ROS_TO_GZ
+
+- ros_topic_name: "/carma/arm/wrist_roll/cmd_pos"
+  gz_topic_name: "/carma/arm/wrist_roll/cmd_pos"
+  ros_type_name: "std_msgs/msg/Float64"
+  gz_type_name: "gz.msgs.Double"
+  direction: ROS_TO_GZ
+
+- ros_topic_name: "/carma/arm/gripper/cmd_pos"
+  gz_topic_name: "/carma/arm/gripper/cmd_pos"
+  ros_type_name: "std_msgs/msg/Float64"
+  gz_type_name: "gz.msgs.Double"
+  direction: ROS_TO_GZ
+
+# Wrist camera: the only camera that sees the pick zone ahead of the guard.
+# rgb8, as Gazebo renders it; see models/so101_follower/model.sdf.
+- ros_topic_name: "/carma/arm/wrist/image_rgb"
+  gz_topic_name: "/carma/arm/wrist/image_rgb"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "/carma/arm/wrist/camera_info"
+  gz_topic_name: "/carma/arm/wrist/camera_info"
+  ros_type_name: "sensor_msgs/msg/CameraInfo"
+  gz_type_name: "gz.msgs.CameraInfo"
+  direction: GZ_TO_ROS

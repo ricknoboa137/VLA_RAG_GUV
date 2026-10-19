@@ -3,6 +3,7 @@
     ros2 launch carma_sim row_crop.launch.py
     ros2 launch carma_sim row_crop.launch.py stage:=CANOPY_CLOSURE
     ros2 launch carma_sim row_crop.launch.py headless:=false        # needs a display
+    ros2 launch carma_sim row_crop.launch.py arm:=true              # with the SO-101 arm
 
 ``stage`` is the one parameter the drift study varies. It takes the names of
 ``carma.types.PhenologyStage`` and is validated against that list here, so a
@@ -84,6 +85,7 @@ def _expand_world(context: LaunchContext) -> list[ExecuteProcess | Node]:
         f"row_spacing:={LaunchConfiguration('row_spacing').perform(context)}",
         f"row_length:={LaunchConfiguration('row_length').perform(context)}",
         f"obstacles:={LaunchConfiguration('obstacles').perform(context)}",
+        f"arm:={LaunchConfiguration('arm').perform(context)}",
     ]
     # A template error must stop the launch, not start Gazebo on a stale
     # expansion left over from the previous run. xacro puts the useful part of
@@ -166,6 +168,14 @@ def generate_launch_description() -> LaunchDescription:
             ),
             DeclareLaunchArgument("row_length", default_value="24.0"),
             DeclareLaunchArgument("obstacles", default_value="true"),
+            DeclareLaunchArgument(
+                "arm",
+                default_value="false",
+                description=(
+                    "Spawn the SO-101 follower arm on the front of the vehicle "
+                    "(models/carma_ugv_arm). Off for the recorded experiments."
+                ),
+            ),
             DeclareLaunchArgument("verbosity", default_value="2"),
             DeclareLaunchArgument(
                 "world_template",

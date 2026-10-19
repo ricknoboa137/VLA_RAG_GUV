@@ -1,0 +1,288 @@
+<?xml version="1.0"?>
+<!--
+  so101_follower - the SO-101 follower arm (TheRobotStudio / Hugging Face
+  LeRobot) that rides on the front of the CARMA platform.
+
+  Source. Every joint origin, axis, limit and link mass is copied from the
+  official URDF, TheRobotStudio/SO-ARM100 Simulation/SO101/so101_new_calib.urdf
+  (Apache-2.0). Each link frame here is the URDF child-link frame, posed
+  relative to its parent link by the URDF joint origin, so joint angles mean the
+  same thing in both files and a LeRobot recording replays here unchanged.
+
+  Geometry is NOT the URDF's. The URDF draws the printed parts from STL meshes;
+  this model draws each link as a cylinder from its joint to the next one, and
+  the base as a 110 x 90 x 62.4 mm box. No mesh is fetched or vendored, which
+  keeps AGENTS.md section 2.3 (no network at run time) trivially true.
+
+  Joint limits. Effort is the 12 V STS3215 stall torque, 30 kg.cm = 2.94 N.m;
+  velocity is its no-load speed, 0.222 s per 60 deg = 4.7 rad/s. The URDF's own
+  effort and velocity entries are placeholders (10 and 10).
+
+  Topics (gz side; bridged by config/bridge.yaml only when the arm is spawned)
+    /carma/arm/<joint>/cmd_pos   gz.msgs.Double, target angle in radians
+    /carma/arm/joint_states      gz.msgs.Model, all six joints
+    /carma/arm/wrist/image_rgb   gz.msgs.Image, 640 x 480 rgb8, 15 Hz, 70 deg
+    /carma/arm/wrist/camera_info gz.msgs.CameraInfo
+  Joints: shoulder_pan, shoulder_lift, elbow_flex, wrist_flex, wrist_roll,
+  gripper.
+
+  The PID gains have not been tuned against a running simulation; expect to
+  adjust p_gain if a joint oscillates or sags under gravity.
+
+  Grasp frame: gripper_frame, between the jaws, as gripper_frame_link in the
+  URDF. Reach from the shoulder-lift axis to it, arm straight, is 0.410 m.
+-->
+<sdf version="1.10">
+  <model name="so101_follower">
+
+    <link name="base_link">
+      <inertial><pose>0.0388 0 0.0312 0 0 0</pose><mass>0.147</mass>
+        <inertia><ixx>0.000147</ixx><ixy>0</ixy><ixz>0</ixz><iyy>0.000196</iyy><iyz>0</iyz><izz>0.000247</izz></inertia>
+      </inertial>
+      <visual name="visual"><pose>0.0388 0 0.0312 0 0 0</pose>
+        <geometry><box><size>0.11 0.09 0.0624</size></box></geometry>
+        <material><ambient>0.45 0.45 0.45 1</ambient><diffuse>0.92 0.92 0.90 1</diffuse></material>
+      </visual>
+      <collision name="collision"><pose>0.0388 0 0.0312 0 0 0</pose>
+        <geometry><box><size>0.11 0.09 0.0624</size></box></geometry>
+      </collision>
+    </link>
+
+    <link name="shoulder_link">
+      <pose relative_to="base_link">0.0388353 0 0.0624 3.14159 0 -3.14159</pose>
+      <inertial><pose>-0.0151996 -0.0091389 -0.0271 0 2.5621 -2.60025</pose><mass>0.100006</mass>
+        <inertia><ixx>4.31e-05</ixx><ixy>0</ixy><ixz>0</ixz><iyy>4.31e-05</iyy><iyz>0</iyz><izz>1.62e-05</izz></inertia>
+      </inertial>
+      <visual name="visual"><pose>-0.0151996 -0.0091389 -0.0271 0 2.5621 -2.60025</pose>
+        <geometry><cylinder><radius>0.018</radius><length>0.0648</length></cylinder></geometry>
+        <material><ambient>0.45 0.45 0.45 1</ambient><diffuse>0.92 0.92 0.90 1</diffuse></material>
+      </visual>
+      <collision name="collision"><pose>-0.0151996 -0.0091389 -0.0271 0 2.5621 -2.60025</pose>
+        <geometry><cylinder><radius>0.018</radius><length>0.0648</length></cylinder></geometry>
+      </collision>
+    </link>
+
+    <link name="upper_arm_link">
+      <pose relative_to="shoulder_link">-0.0303992 -0.0182778 -0.0542 -1.5708 -1.5708 0</pose>
+      <inertial><pose>-0.056285 -0.014 0 0 1.5708 -2.89781</pose><mass>0.103</mass>
+        <inertia><ixx>0.000124</ixx><ixy>0</ixy><ixz>0</ixz><iyy>0.000124</iyy><iyz>0</iyz><izz>1.67e-05</izz></inertia>
+      </inertial>
+      <visual name="visual"><pose>-0.056285 -0.014 0 0 1.5708 -2.89781</pose>
+        <geometry><cylinder><radius>0.018</radius><length>0.1160</length></cylinder></geometry>
+        <material><ambient>0.45 0.45 0.45 1</ambient><diffuse>0.92 0.92 0.90 1</diffuse></material>
+      </visual>
+      <collision name="collision"><pose>-0.056285 -0.014 0 0 1.5708 -2.89781</pose>
+        <geometry><cylinder><radius>0.018</radius><length>0.1160</length></cylinder></geometry>
+      </collision>
+    </link>
+
+    <link name="lower_arm_link">
+      <pose relative_to="upper_arm_link">-0.11257 -0.028 0 0 0 1.5708</pose>
+      <inertial><pose>-0.06745 0.0026 0 0 1.5708 3.10306</pose><mass>0.104</mass>
+        <inertia><ixx>0.000166</ixx><ixy>0</ixy><ixz>0</ixz><iyy>0.000166</iyy><iyz>0</iyz><izz>1.68e-05</izz></inertia>
+      </inertial>
+      <visual name="visual"><pose>-0.06745 0.0026 0 0 1.5708 3.10306</pose>
+        <geometry><cylinder><radius>0.018</radius><length>0.1350</length></cylinder></geometry>
+        <material><ambient>0.45 0.45 0.45 1</ambient><diffuse>0.92 0.92 0.90 1</diffuse></material>
+      </visual>
+      <collision name="collision"><pose>-0.06745 0.0026 0 0 1.5708 3.10306</pose>
+        <geometry><cylinder><radius>0.018</radius><length>0.1350</length></cylinder></geometry>
+      </collision>
+    </link>
+
+    <link name="wrist_link">
+      <pose relative_to="lower_arm_link">-0.1349 0.0052 0 0 0 -1.5708</pose>
+      <inertial><pose>0 -0.03055 0.00905 0 1.2828 -1.5708</pose><mass>0.079</mass>
+        <inertia><ixx>3.31e-05</ixx><ixy>0</ixy><ixz>0</ixz><iyy>3.31e-05</iyy><iyz>0</iyz><izz>1.28e-05</izz></inertia>
+      </inertial>
+      <visual name="visual"><pose>0 -0.03055 0.00905 0 1.2828 -1.5708</pose>
+        <geometry><cylinder><radius>0.018</radius><length>0.0637</length></cylinder></geometry>
+        <material><ambient>0.45 0.45 0.45 1</ambient><diffuse>0.92 0.92 0.90 1</diffuse></material>
+      </visual>
+      <collision name="collision"><pose>0 -0.03055 0.00905 0 1.2828 -1.5708</pose>
+        <geometry><cylinder><radius>0.018</radius><length>0.0637</length></cylinder></geometry>
+      </collision>
+    </link>
+
+    <link name="gripper_link">
+      <pose relative_to="wrist_link">0 -0.0611 0.0181 1.5708 0.0486795 3.14159</pose>
+      <inertial><pose>0.0101 0.0094 -0.0117 0 2.27412 0.749516</pose><mass>0.087</mass>
+        <inertia><ixx>1.65e-05</ixx><ixy>0</ixy><ixz>0</ixz><iyy>1.65e-05</iyy><iyz>0</iyz><izz>1.41e-05</izz></inertia>
+      </inertial>
+      <visual name="visual"><pose>0.0101 0.0094 -0.0117 0 2.27412 0.749516</pose>
+        <geometry><cylinder><radius>0.018</radius><length>0.0362</length></cylinder></geometry>
+        <material><ambient>0.45 0.45 0.45 1</ambient><diffuse>0.92 0.92 0.90 1</diffuse></material>
+      </visual>
+      <collision name="collision"><pose>0.0101 0.0094 -0.0117 0 2.27412 0.749516</pose>
+        <geometry><cylinder><radius>0.018</radius><length>0.0362</length></cylinder></geometry>
+      </collision>
+      <!--
+        Wrist camera, as shipped with the SO-101 kits. Mount position is an
+        estimate: on the gripper housing, looking down the jaws (-z of this
+        link), so the grasp target is in frame when the hand points at it.
+        rgb8 like the stereo pair; not relayed to bgr8, because nothing in the
+        library consumes it yet.
+      -->
+      <sensor name="wrist_camera" type="camera">
+        <pose>0 0.025 -0.03 0 1.5708 0</pose>
+        <topic>/carma/arm/wrist/image_rgb</topic>
+        <update_rate>15</update_rate>
+        <always_on>true</always_on>
+        <camera>
+          <camera_info_topic>/carma/arm/wrist/camera_info</camera_info_topic>
+          <horizontal_fov>1.2217</horizontal_fov>
+          <image>
+            <width>640</width>
+            <height>480</height>
+            <format>R8G8B8</format>
+          </image>
+          <clip><near>0.02</near><far>5.0</far></clip>
+        </camera>
+      </sensor>
+    </link>
+
+    <link name="moving_jaw_link">
+      <pose relative_to="gripper_link">0.0202 0.0188 -0.0234 1.5708 0 0</pose>
+      <inertial><pose>0 -0.025 0 0 1.5708 -1.5708</pose><mass>0.012</mass>
+        <inertia><ixx>3.47e-06</ixx><ixy>0</ixy><ixz>0</ixz><iyy>3.47e-06</iyy><iyz>0</iyz><izz>1.94e-06</izz></inertia>
+      </inertial>
+      <visual name="visual"><pose>0 -0.025 0 0 1.5708 -1.5708</pose>
+        <geometry><cylinder><radius>0.006</radius><length>0.0500</length></cylinder></geometry>
+        <material><ambient>0.45 0.45 0.45 1</ambient><diffuse>0.92 0.92 0.90 1</diffuse></material>
+      </visual>
+      <collision name="collision"><pose>0 -0.025 0 0 1.5708 -1.5708</pose>
+        <geometry><cylinder><radius>0.006</radius><length>0.0500</length></cylinder></geometry>
+      </collision>
+    </link>
+
+    <joint name="shoulder_pan" type="revolute">
+      <parent>base_link</parent>
+      <child>shoulder_link</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit><lower>-1.91986</lower><upper>1.91986</upper><effort>2.94</effort><velocity>4.7</velocity></limit>
+        <dynamics><damping>0.05</damping><friction>0.01</friction></dynamics>
+      </axis>
+    </joint>
+
+    <joint name="shoulder_lift" type="revolute">
+      <parent>shoulder_link</parent>
+      <child>upper_arm_link</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit><lower>-1.74533</lower><upper>1.74533</upper><effort>2.94</effort><velocity>4.7</velocity></limit>
+        <dynamics><damping>0.05</damping><friction>0.01</friction></dynamics>
+      </axis>
+    </joint>
+
+    <joint name="elbow_flex" type="revolute">
+      <parent>upper_arm_link</parent>
+      <child>lower_arm_link</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit><lower>-1.69</lower><upper>1.69</upper><effort>2.94</effort><velocity>4.7</velocity></limit>
+        <dynamics><damping>0.05</damping><friction>0.01</friction></dynamics>
+      </axis>
+    </joint>
+
+    <joint name="wrist_flex" type="revolute">
+      <parent>lower_arm_link</parent>
+      <child>wrist_link</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit><lower>-1.65806</lower><upper>1.65806</upper><effort>2.94</effort><velocity>4.7</velocity></limit>
+        <dynamics><damping>0.05</damping><friction>0.01</friction></dynamics>
+      </axis>
+    </joint>
+
+    <joint name="wrist_roll" type="revolute">
+      <parent>wrist_link</parent>
+      <child>gripper_link</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit><lower>-2.74385</lower><upper>2.84121</upper><effort>2.94</effort><velocity>4.7</velocity></limit>
+        <dynamics><damping>0.05</damping><friction>0.01</friction></dynamics>
+      </axis>
+    </joint>
+
+    <joint name="gripper" type="revolute">
+      <parent>gripper_link</parent>
+      <child>moving_jaw_link</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit><lower>-0.174533</lower><upper>1.74533</upper><effort>2.94</effort><velocity>4.7</velocity></limit>
+        <dynamics><damping>0.05</damping><friction>0.01</friction></dynamics>
+      </axis>
+    </joint>
+
+    <!-- Point between the jaws: the grasp target frame (gripper_frame_link in the URDF). -->
+    <frame name="gripper_frame" attached_to="gripper_link">
+      <pose>-0.0079 -0.000218121 -0.0981274 0 3.14159 0</pose>
+    </frame>
+
+    <plugin filename="gz-sim-joint-position-controller-system"
+            name="gz::sim::systems::JointPositionController">
+      <joint_name>shoulder_pan</joint_name>
+      <topic>/carma/arm/shoulder_pan/cmd_pos</topic>
+      <p_gain>8</p_gain><i_gain>0.5</i_gain><d_gain>0.2</d_gain>
+      <i_max>1</i_max><i_min>-1</i_min>
+      <cmd_max>2.94</cmd_max><cmd_min>-2.94</cmd_min>
+    </plugin>
+
+    <plugin filename="gz-sim-joint-position-controller-system"
+            name="gz::sim::systems::JointPositionController">
+      <joint_name>shoulder_lift</joint_name>
+      <topic>/carma/arm/shoulder_lift/cmd_pos</topic>
+      <p_gain>8</p_gain><i_gain>0.5</i_gain><d_gain>0.2</d_gain>
+      <i_max>1</i_max><i_min>-1</i_min>
+      <cmd_max>2.94</cmd_max><cmd_min>-2.94</cmd_min>
+    </plugin>
+
+    <plugin filename="gz-sim-joint-position-controller-system"
+            name="gz::sim::systems::JointPositionController">
+      <joint_name>elbow_flex</joint_name>
+      <topic>/carma/arm/elbow_flex/cmd_pos</topic>
+      <p_gain>8</p_gain><i_gain>0.5</i_gain><d_gain>0.2</d_gain>
+      <i_max>1</i_max><i_min>-1</i_min>
+      <cmd_max>2.94</cmd_max><cmd_min>-2.94</cmd_min>
+    </plugin>
+
+    <plugin filename="gz-sim-joint-position-controller-system"
+            name="gz::sim::systems::JointPositionController">
+      <joint_name>wrist_flex</joint_name>
+      <topic>/carma/arm/wrist_flex/cmd_pos</topic>
+      <p_gain>8</p_gain><i_gain>0.5</i_gain><d_gain>0.2</d_gain>
+      <i_max>1</i_max><i_min>-1</i_min>
+      <cmd_max>2.94</cmd_max><cmd_min>-2.94</cmd_min>
+    </plugin>
+
+    <plugin filename="gz-sim-joint-position-controller-system"
+            name="gz::sim::systems::JointPositionController">
+      <joint_name>wrist_roll</joint_name>
+      <topic>/carma/arm/wrist_roll/cmd_pos</topic>
+      <p_gain>8</p_gain><i_gain>0.5</i_gain><d_gain>0.2</d_gain>
+      <i_max>1</i_max><i_min>-1</i_min>
+      <cmd_max>2.94</cmd_max><cmd_min>-2.94</cmd_min>
+    </plugin>
+
+    <plugin filename="gz-sim-joint-position-controller-system"
+            name="gz::sim::systems::JointPositionController">
+      <joint_name>gripper</joint_name>
+      <topic>/carma/arm/gripper/cmd_pos</topic>
+      <p_gain>8</p_gain><i_gain>0.5</i_gain><d_gain>0.2</d_gain>
+      <i_max>1</i_max><i_min>-1</i_min>
+      <cmd_max>2.94</cmd_max><cmd_min>-2.94</cmd_min>
+    </plugin>
+
+    <plugin filename="gz-sim-joint-state-publisher-system"
+            name="gz::sim::systems::JointStatePublisher">
+      <topic>/carma/arm/joint_states</topic>
+      <joint_name>shoulder_pan</joint_name>
+      <joint_name>shoulder_lift</joint_name>
+      <joint_name>elbow_flex</joint_name>
+      <joint_name>wrist_flex</joint_name>
+      <joint_name>wrist_roll</joint_name>
+      <joint_name>gripper</joint_name>
+    </plugin>
+  </model>
+</sdf>

@@ -58,6 +58,10 @@ does not fit the 0.70 m alley that produced, so the default moved to 1.8 m.
 Any numbers recorded against the old spacing are not comparable with numbers
 recorded against this one.
 
+`arm:=true` spawns the vehicle with the SO-101 arm on its front (see
+[The arm](#the-arm) below). It defaults to `false`, and with it off the world
+expands to the same robot as before the arm existed.
+
 Other world arguments — `rows`, `row_spacing`, `row_length`, `obstacles` — exist
 for debugging. Changing them changes the world the numbers came from, so leave
 them at their defaults for anything that reaches a paper.
@@ -86,7 +90,8 @@ The GNSS mast and antenna carry no sensor — there is no GNSS topic in the
 bridge contract. They exist so the machine is recognisable in the viewport and
 in screenshots, nothing more.
 
-**No part of the robot appears in its own camera images.** The mast and whip
+**No part of the robot appears in its own camera images** — with the arm off;
+see below for the arm. The mast and whip
 sit 0.58 m behind the camera, and the front guard, at 0.28 m ahead and 0.19 m
 off the ground, falls below the bottom of the frame — the view at that range
 starts 0.57 m up. So the body shape does not enter the perception path, and a
@@ -150,6 +155,31 @@ contract did not: `AckermannSteering` consumes the same
 *achievable* — `angular.z` with `linear.x` near zero no longer turns the
 vehicle, because there is no steering authority without forward motion.
 
+### The arm
+
+`models/so101_follower/` is the SO-101 follower arm, and `models/carma_ugv_arm/`
+is `carma_ugv` merged in unchanged with that arm nested as `arm` on a plate over
+the front guard. `arm:=true` spawns the second one, still named `carma_ugv`.
+
+| Quantity | Value |
+|---|---|
+| Arm base origin in `base_link` | x 0.771, z 0.013 (0.213 m above ground) |
+| Reach, shoulder-lift axis to the jaws | 0.410 m |
+| Arm mass | 0.632 kg, link by link from the URDF |
+| Joint effort / speed limit | 2.94 N·m / 4.7 rad/s (12 V STS3215) |
+| Wrist camera | 640 × 480, 70° horizontal, 15 Hz, `rgb8`, looking down the jaws |
+
+Kinematics, joint limits and link masses are copied from the official URDF
+(`Simulation/SO101/so101_new_calib.urdf` in TheRobotStudio/SO-ARM100,
+Apache-2.0); the links are drawn as cylinders, not the printed-part meshes, so
+nothing is fetched. The PID gains are untuned.
+
+The head camera sees the ground from about 1.8 m ahead, and the pick zone ends
+about 1.0 m ahead of `base_link`, so the head camera never sees a grasp; the
+wrist camera does. The arm enters the head camera's frame only when lifted
+above about 0.5 m at the front. The chassis inertia is not adjusted for the
+arm, which is why `arm:=true` stays off for recorded runs.
+
 ## Topics
 
 The model publishes on the Gazebo topics named in the bridge contract
@@ -166,7 +196,9 @@ the three files rather than a remap to chase.
 | `/carma/odom` | `nav_msgs/Odometry` | `DiffDrive` |
 
 Also bridged, outside the contract: the three `camera_info` topics, `/clock`
-and `/carma/joint_states`.
+and `/carma/joint_states`; and, published only with `arm:=true`,
+`/carma/arm/<joint>/cmd_pos`, `/carma/arm/joint_states` and
+`/carma/arm/wrist/{image_rgb,camera_info}`.
 
 ### Why the stereo pair takes a detour
 

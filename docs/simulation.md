@@ -40,6 +40,9 @@ does nothing without `linear.x`, because steering authority comes from forward
 motion. A backbone that emits pivot-in-place actions will appear to fail for
 reasons that have nothing to do with arbitration.
 
+The SO-101 arm can ride on the front (`arm:=true`, off by default). It is not
+part of any experimental condition; see `docs/arm.md`.
+
 Two things about it are load-bearing for the research design:
 
 **Crop stage is a world argument, not a forked file.** The drift study runs the

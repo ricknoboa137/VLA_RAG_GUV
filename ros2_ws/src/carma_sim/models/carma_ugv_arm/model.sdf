@@ -1,0 +1,72 @@
+<?xml version="1.0"?>
+<!--
+  carma_ugv_arm - carma_ugv with the SO-101 follower arm on its front.
+
+  carma_ugv is merged in unchanged (merge="true"), so every link, joint, sensor,
+  plugin and topic keeps the name it has in models/carma_ugv/model.sdf, and the
+  drive and odometry numbers there still hold. The arm is nested as "arm", so
+  its frames are arm::base_link ... arm::gripper_link and its topics are the
+  /carma/arm/... ones documented in models/so101_follower/model.sdf.
+
+  Mount. The physical platform carries the arm on a 5 mm aluminium plate over
+  the bumper, low, so that a top-down grasp reaches the ground ahead of the
+  robot (CARMA-platform BOM, Rev K). Here the plate sits on the tubular front
+  guard, just ahead of the bonnet:
+    arm base origin   x 0.771, z 0.013 in base_link (0.213 m above ground)
+    plate             0.148 x 0.140 x 0.005 m, visual only, like the guard
+
+  This body is the larger photographed platform, not the Rev K CAD, so the
+  arm sits higher here than on the real machine (0.213 m against 0.140 m) and
+  a top-down grasp reaches about 0.13 m past the guard rather than 0.31 m past
+  the bumper. Use the sim for the arm's control and the camera's view of it,
+  not for reach numbers.
+
+  The base_link inertial of carma_ugv is not adjusted for the arm's 0.63 kg.
+  The arm's own links carry their mass, so the model's total is right; only
+  the chassis' lumped inertia ignores the plate.
+-->
+<sdf version="1.10">
+  <model name="carma_ugv_arm">
+
+    <include merge="true">
+      <uri>model://carma_ugv</uri>
+    </include>
+
+    <include>
+      <uri>model://so101_follower</uri>
+      <name>arm</name>
+      <pose relative_to="base_link">0.771 0 0.013 0 0 0</pose>
+    </include>
+
+    <joint name="arm_mount" type="fixed">
+      <parent>base_link</parent>
+      <child>arm::base_link</child>
+    </joint>
+
+    <link name="arm_plate_link">
+      <pose relative_to="base_link">0.826 0 0.0105 0 0 0</pose>
+      <inertial>
+        <mass>0.28</mass>
+        <inertia>
+          <ixx>0.00046</ixx><ixy>0</ixy><ixz>0</ixz>
+          <iyy>0.00051</iyy><iyz>0</iyz>
+          <izz>0.00097</izz>
+        </inertia>
+      </inertial>
+      <visual name="arm_plate_visual">
+        <geometry><box><size>0.148 0.140 0.005</size></box></geometry>
+        <material>
+          <ambient>0.28 0.29 0.30 1</ambient>
+          <diffuse>0.62 0.64 0.67 1</diffuse>
+          <specular>0.45 0.45 0.45 1</specular>
+        </material>
+      </visual>
+    </link>
+
+    <joint name="arm_plate_joint" type="fixed">
+      <parent>base_link</parent>
+      <child>arm_plate_link</child>
+    </joint>
+
+  </model>
+</sdf>

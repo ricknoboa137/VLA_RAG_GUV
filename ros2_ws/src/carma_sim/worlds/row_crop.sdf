@@ -39,12 +39,14 @@
   <xacro:arg name="row_spacing" default="1.8"/>
   <xacro:arg name="row_length" default="24.0"/>
   <xacro:arg name="obstacles" default="true"/>
+  <xacro:arg name="arm" default="false"/>
 
   <xacro:property name="stage" value="$(arg stage)"/>
   <xacro:property name="rows" value="$(arg rows)"/>
   <xacro:property name="row_spacing" value="$(arg row_spacing)"/>
   <xacro:property name="row_length" value="$(arg row_length)"/>
   <xacro:property name="obstacles" value="$(arg obstacles)"/>
+  <xacro:property name="arm" value="$(arg arm)"/>
 
   <!--
     Crop canopy as a function of phenological stage. Heights and widths are
@@ -258,12 +260,25 @@
       The robot. Spawned here rather than with ros_gz_sim create, so that a
       world file is a complete description of an episode's starting state.
       z = 0.20 puts the rear wheels on the ground; see models/carma_ugv/model.sdf.
+
+      arm:=true spawns carma_ugv_arm instead: the same vehicle with the SO-101
+      follower arm on its front, still named carma_ugv. The default is false,
+      so the worlds the recorded runs were made in expand exactly as before.
     -->
-    <include>
-      <uri>model://carma_ugv</uri>
-      <name>carma_ugv</name>
-      <pose>0 0 0.20 0 0 0</pose>
-    </include>
+    <xacro:unless value="${arm}">
+      <include>
+        <uri>model://carma_ugv</uri>
+        <name>carma_ugv</name>
+        <pose>0 0 0.20 0 0 0</pose>
+      </include>
+    </xacro:unless>
+    <xacro:if value="${arm}">
+      <include>
+        <uri>model://carma_ugv_arm</uri>
+        <name>carma_ugv</name>
+        <pose>0 0 0.20 0 0 0</pose>
+      </include>
+    </xacro:if>
 
   </world>
 </sdf>

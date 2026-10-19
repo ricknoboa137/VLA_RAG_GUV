@@ -351,6 +351,21 @@ docker compose -f docker/compose.yaml --profile sim run --rm sim ros2 launch car
 Valid names are those of `carma.types.PhenologyStage`. A typo stops the launch
 instead of silently rendering the default stage.
 
+**Add the SO-101 arm.** Off by default, so recorded worlds are unchanged:
+
+```bash
+docker compose -f docker/compose.yaml --profile sim run --rm sim ros2 launch carma_sim row_crop.launch.py arm:=true
+```
+
+Then move a joint from the shell, angles in radians:
+
+```bash
+ros2 topic pub --once /carma/arm/shoulder_lift/cmd_pos std_msgs/msg/Float64 '{data: -0.8}'
+```
+
+Joints, topics, the wrist camera and why the arm is on the front:
+`docs/arm.md`.
+
 **See it in a window.** On Windows 11 this goes through the WSLg X server. It
 is a plain `docker run`, not compose, and it renders in software:
 
@@ -586,6 +601,8 @@ All tests run offline, with no GPU and no simulator, in well under a minute.
 | `carma_voice/test/test_audio.py` | Tests `audio.py` | Run with `colcon test` |
 | `carma_sim/worlds/row_crop.sdf` | The row-crop field, as a template expanded per crop stage | The simulated experimental world |
 | `carma_sim/models/carma_ugv/model.sdf`, `model.config` | The tractor-style UGV: body, wheels, stereo camera, depth camera, odometry | The simulated robot, shaped like the real one |
+| `carma_sim/models/so101_follower/model.sdf`, `model.config` | The SO-101 arm: six position-controlled joints from the official URDF, and a wrist camera | The arm, testable before the real one is built |
+| `carma_sim/models/carma_ugv_arm/model.sdf`, `model.config` | `carma_ugv` unchanged, plus the arm on a plate over the front guard | Spawned instead of `carma_ugv` with `arm:=true` |
 | `carma_sim/launch/row_crop.launch.py` | Expands the world for the chosen stage, then starts Gazebo, the ROS bridge and `bgr_relay` | Used by the `sim` service |
 | `carma_sim/config/bridge.yaml` | Maps Gazebo topics onto the ROS topic names | The simulator meets the same topic contract as the real robot |
 | `carma_sim/scripts/bgr_relay.py` | Converts the simulator's RGB images to BGR | Gazebo cannot output BGR, and the project uses BGR throughout |
@@ -608,6 +625,7 @@ All tests run offline, with no GPU and no simulator, in well under a minute.
 | `speech.md` | The speech pipeline and its rejection rules |
 | `streaming.md` | Camera streaming now (MQTT) and the planned VR transport (WebRTC) |
 | `stereo_depth.md` | Measured depth accuracy, range and shutter of the 3D USB camera |
+| `arm.md` | The SO-101 arm: where it is mounted and why, its topics in simulation, driving the real one |
 
 ### `vr/unity/`: the Meta Quest 2 app
 

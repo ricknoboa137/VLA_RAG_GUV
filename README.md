@@ -60,7 +60,8 @@ It comes up headless and publishes the robot side of the topic contract —
 stereo pair, depth, odometry — and drives on `/carma/cmd_vel`. Step-by-step
 instructions, including how to drive it, view the cameras and open the Gazebo
 window, are in section 8 of `HOW_TO_USE.md`. The world and robot geometry are
-documented in `ros2_ws/src/carma_sim/README.md`.
+documented in `ros2_ws/src/carma_sim/README.md`. `arm:=true` adds the SO-101
+pick-up arm on the front of the vehicle (`docs/arm.md`).
 
 The library cannot yet run an episode against it: `GazeboAdapter` and the
 bridge synchroniser are stubs, so experiments still use `sim.kind=synthetic`.
