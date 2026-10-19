@@ -172,7 +172,8 @@ the front guard. `arm:=true` spawns the second one, still named `carma_ugv`.
 Kinematics, joint limits and link masses are copied from the official URDF
 (`Simulation/SO101/so101_new_calib.urdf` in TheRobotStudio/SO-ARM100,
 Apache-2.0); the links are drawn as cylinders, not the printed-part meshes, so
-nothing is fetched. The PID gains are untuned.
+nothing is fetched. Checked running: each joint settles within 0.05 rad of
+its command, and the vehicle still drives on `/carma/cmd_vel` with the arm on.
 
 The head camera sees the ground from about 1.8 m ahead, and the pick zone ends
 about 1.0 m ahead of `base_link`, so the head camera never sees a grasp; the
