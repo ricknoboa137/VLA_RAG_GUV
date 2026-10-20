@@ -544,6 +544,7 @@ All tests run offline, with no GPU and no simulator, in well under a minute.
 | File | What it does | Why it is needed |
 |---|---|---|
 | `fetch_models.py` | Downloads open model weights into `assets/` | The only step that touches the network, so downloads are explicit and auditable |
+| `fetch_training_assets.py` | Downloads the SmolVLA policy, its VLM config and the fine-tuning dataset into `assets/`, each pinned to a commit | The same explicit fetch for the separate training environment in `training/` |
 | `check_pins.py` | Fails if a dependency is not pinned to an exact version | Reproducibility gate, run by `make check` and CI |
 | `webcam_mqtt.py` | Sends a webcam (mono, or a side-by-side stereo pair) to the broker | Feeds the vision container and the headset from a PC camera |
 | `mic_mqtt.py` | Records speech from a PC microphone and sends each clip to the broker | Operator speech without the headset |
@@ -565,6 +566,22 @@ All tests run offline, with no GPU and no simulator, in well under a minute.
 | `requirements-lib.lock`, `requirements-dev.lock` | Exact versions of every package, including indirect ones | Two builds of the same commit install identical packages |
 | `viewer/index.html` | The browser page on port 8088: live picture and analysis results over WebSocket MQTT | Watch the robot's view from any browser |
 | `README.md` | Images, reproducibility, ports, DDS details | Reference for the container side |
+
+### `training/`: VLA fine-tuning, in its own environment
+
+Not part of the `carma` package: torch and LeRobot live only in the
+`carma-train` conda environment, so the library's pinned dependencies are
+untouched.
+
+| File | What it does | Why it is needed |
+|---|---|---|
+| `README.md` | Installing the environment, fetching assets, both smoke tests, what 8 GB allows | How to reproduce the fine-tuning setup on a clean machine |
+| `requirements.in` | The top-level pins: torch, torchvision, torchcodec, LeRobot | What the lock was resolved from |
+| `requirements-win64.lock`, `conda-win64.lock` | Every pip and conda package of the environment, exact versions | Two installs give identical environments |
+| `smoke_inference.py` | Loads SmolVLA on the GPU and times action-chunk prediction | Measures latency and memory for any state/action size |
+| `measure_train.py` | Runs `lerobot-train` and records peak GPU memory | LeRobot does not report peak memory itself |
+| `sweep_batch.py` | Short training runs over batch sizes and precision settings | Finds the largest batch that fits on the card |
+| `results/` | Measured numbers as JSON, and `RESULTS.md`, the dated log of every run | The record that reports and papers cite |
 
 ### `ros2_ws/`: ROS 2 packages, run inside the containers
 

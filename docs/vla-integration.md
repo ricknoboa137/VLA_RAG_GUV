@@ -88,3 +88,13 @@ What it needs, in order:
 
 Hardware is not the obstacle: 0.9B in bf16 fits the development machine's
 8 GB of VRAM comfortably.
+
+## SmolVLA, for the planned arm
+
+The pick-and-place arm to be mounted on the platform is a manipulator, so a
+manipulator VLA fits it directly, with none of the action-space mismatch
+above. The preferred model is SmolVLA (Apache-2.0, 450M parameters): unlike
+X-VLA it fine-tunes on the 8 GB development GPU with room to spare. Its
+fine-tuning environment, measured on that GPU, lives in `training/`, outside
+the `carma` package and its pins; see `training/README.md`. X-VLA (0.9B, LoRA
+available) remains the fallback.
