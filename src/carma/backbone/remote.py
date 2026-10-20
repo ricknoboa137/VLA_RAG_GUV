@@ -74,6 +74,12 @@ class HttpTransport:
         except urllib.error.URLError as exc:
             msg = f"policy server at {self._url} did not answer: {exc.reason}"
             raise BackboneError(msg) from exc
+        except OSError as exc:
+            # A timeout while reading the reply, or a connection dropped
+            # mid-answer, arrives as TimeoutError or ConnectionError rather
+            # than URLError. Both mean the server did not answer.
+            msg = f"policy server at {self._url} did not answer: {exc!r}"
+            raise BackboneError(msg) from exc
         except json.JSONDecodeError as exc:
             msg = f"policy server at {self._url} returned invalid JSON"
             raise BackboneError(msg) from exc

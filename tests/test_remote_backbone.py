@@ -12,7 +12,7 @@ from typing import Any
 import numpy as np
 import pytest
 
-from carma.backbone.remote import RemoteBackbone
+from carma.backbone.remote import HttpTransport, RemoteBackbone
 from carma.backbone.wire import (
     ActRequest,
     ActResponse,
@@ -266,3 +266,17 @@ def test_duplicate_view_names_are_rejected() -> None:
             seed=0,
             views=(("arm_left", "a"), ("arm_left", "b")),
         )
+
+
+@pytest.mark.parametrize("failure", [TimeoutError("timed out"), ConnectionResetError("reset")])
+def test_a_reply_that_never_arrives_is_a_backbone_error(
+    failure: OSError, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A read timeout is TimeoutError, not URLError; it once escaped and froze the live loop."""
+
+    def fail(*_args: object, **_kwargs: object) -> None:
+        raise failure
+
+    monkeypatch.setattr("urllib.request.urlopen", fail)
+    with pytest.raises(BackboneError, match="did not answer"):
+        HttpTransport("http://127.0.0.1:1/act").post({}, timeout_s=0.1)
