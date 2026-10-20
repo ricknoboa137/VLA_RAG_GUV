@@ -96,14 +96,16 @@ class UncertaintyMap:
     The method key says so, so nothing downstream mistakes it for calibrated.
 
     ``logistic``: ``u = sigmoid(a * ln(s) + b)``, fitted on held-out frames by
-    ``scripts/benchmark_arm_policies.py --fit`` to predict whether the chunk's
-    error exceeds ``tolerance_rad``. Calibrated against that event only.
+    ``scripts/fit_arm_uncertainty.py`` (:func:`fit_logistic`) to predict whether
+    the chunk's mean joint error exceeds ``tolerance_rad``. Calibrated against
+    that event only, and only for the model it was fitted on.
 
     Attributes:
         method: ``uncalibrated`` or ``logistic``.
         scale: Spread at which the uncalibrated map gives 0.5.
         a: Logistic slope on ln(spread).
         b: Logistic intercept.
+        tolerance_rad: The error the logistic map predicts exceeding, in radians.
         source: Where the fit came from, recorded with every reply.
     """
 
@@ -111,6 +113,7 @@ class UncertaintyMap:
     scale: float = 0.02
     a: float = 0.0
     b: float = 0.0
+    tolerance_rad: float = 0.0
     source: str = ""
 
     def __post_init__(self) -> None:
@@ -238,6 +241,47 @@ def load_spec(path: Path) -> ArmPolicySpec:
         joints=joints,
         uncertainty=UncertaintyMap(**raw.get("uncertainty", {})),
     )
+
+
+def fit_logistic(
+    spreads: FloatArray, exceeded: npt.NDArray[np.bool_], ridge: float = 1e-3, iterations: int = 50
+) -> tuple[float, float]:
+    """Fit ``P(exceeded) = sigmoid(a * ln(spread) + b)`` by maximum likelihood.
+
+    Newton's method (iteratively reweighted least squares) with a small ridge
+    penalty on ``a``, so a perfectly separable calibration set still gives a
+    finite slope. Deterministic: no randomness, fixed iteration count with an
+    early stop on convergence.
+
+    Args:
+        spreads: ``(n,)`` chunk spreads, each positive.
+        exceeded: ``(n,)`` whether that chunk's error exceeded the tolerance.
+        ridge: L2 penalty on the slope.
+        iterations: Most Newton steps taken.
+
+    Returns:
+        ``(a, b)``.
+    """
+    s = np.asarray(spreads, dtype=np.float64)
+    y = np.asarray(exceeded, dtype=np.float64)
+    if s.ndim != 1 or s.shape != y.shape or len(s) < 2:
+        msg = f"need two equal 1-D samples of length >= 2, got {s.shape} and {y.shape}"
+        raise ValueError(msg)
+    if not np.all(s > 0.0) or not np.all(np.isfinite(s)):
+        msg = "every spread must be positive and finite"
+        raise ValueError(msg)
+    x = np.stack([np.log(s), np.ones_like(s)], axis=1)
+    penalty = np.diag([ridge, 0.0])
+    w = np.zeros(2)
+    for _ in range(iterations):
+        p = 1.0 / (1.0 + np.exp(-np.clip(x @ w, -500.0, 500.0)))
+        gradient = x.T @ (p - y) + penalty @ w
+        hessian = (x * (p * (1.0 - p))[:, None]).T @ x + penalty + 1e-12 * np.eye(2)
+        step = np.linalg.solve(hessian, gradient)
+        w = w - step
+        if np.abs(step).max() < 1e-10:
+            break
+    return float(w[0]), float(w[1])
 
 
 def chunk_spread(chunks_rad: FloatArray, ranges_rad: FloatArray) -> float:
