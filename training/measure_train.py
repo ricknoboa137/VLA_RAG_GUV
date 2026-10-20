@@ -53,6 +53,11 @@ def main() -> int:
         lerobot_train.main()
     except torch.OutOfMemoryError as exc:
         error = f"OutOfMemoryError: {str(exc).splitlines()[0]}"
+    except OSError as exc:
+        # On Windows without Developer Mode, LeRobot's checkpoints/last symlink
+        # fails (WinError 1314) after the checkpoint itself has been written.
+        # Record it rather than lose the measurement of a finished run.
+        error = f"{type(exc).__name__}: {exc}"
     result = {
         "argv": sys.argv[1:],
         "ok": error is None,
