@@ -41,7 +41,10 @@ services:
     <<: *ros
     # MQTT_CAMERA=true takes camera frames from the broker instead of a driver.
     # MQTT_HOST: the host's broker by default; "broker" for the local-broker profile.
-    command: ros2 launch carma_vision vision.launch.py mqtt_host:=${MQTT_HOST:-host.docker.internal} mqtt_camera:=${MQTT_CAMERA:-false}
+    # ARM_CAMERA=true adds the stereo camera on the arm (carma/arm_source/* ->
+    # /carma/arm/stereo/*). VR_TOPIC=MqttVidFeed sends the world camera to the
+    # Quest client from here, so one USB camera feeds headset, viewer and VLA.
+    command: ros2 launch carma_vision vision.launch.py mqtt_host:=${MQTT_HOST:-host.docker.internal} mqtt_camera:=${MQTT_CAMERA:-false} arm_camera:=${ARM_CAMERA:-false} vr_topic:=${VR_TOPIC:-none}
     volumes:
       # Edit analyzer configs and drop ONNX models in without rebuilding.
       - ../configs:/opt/carma/configs:ro
@@ -68,6 +71,15 @@ services:
     volumes:
       - ./viewer:/usr/share/nginx/html:ro
     restart: unless-stopped
+
+  # Live VLA pipeline: both stereo cameras and operator speech into the policy
+  # server (scripts/policy_server.py --host 0.0.0.0 on the host). Publishes
+  # /carma/vla/action; drives only with VLA_DRIVE=true. See docs/vla-integration.md.
+  vla:
+    <<: *ros
+    profiles: [vla]
+    command: ros2 launch carma_vla vla.launch.py policy_url:=${POLICY_URL:-http://host.docker.internal:8000/act} primary:=${VLA_PRIMARY:-arm} drive:=${VLA_DRIVE:-false}
+    restart: "no"
 
   bridge:
     <<: *ros

@@ -33,6 +33,63 @@ ROS `16UC1` convention, where 0 means no reading.
 | `pose`, `t`, `stage` | where and when | `model_id`, `model_revision` | what answered |
 | `seed` | the only randomness | `inference_s` | measured |
 | `samples` | chunks to draw | `info` | free-form, never read by the arbiter |
+| `views` | further cameras, `{name: PNG}` | | |
+
+`image` and `image_right` are the primary camera. A second stereo camera
+travels in `views` as `<camera>_left` and `<camera>_right` — on this robot,
+`world_left` / `world_right` when the arm camera is primary, or `arm_left` /
+`arm_right` when the world camera is. Key order is kept, and a policy that
+reads one view must accept the others.
+
+## The live pipeline: two stereo cameras and the operator's voice
+
+`carma run` asks the policy from inside an experiment. On the running robot,
+`ros2_ws/src/carma_vla` asks it from live sensors instead:
+
+```
+world stereo camera -> /carma/stereo/*      --+
+arm stereo camera   -> /carma/arm/stereo/*  --+--> carma_vla --> POST /act --> policy_server.py
+operator speech -> carma_voice -> /carma/operator/utterance --+       |
+                                                                     v
+                         /carma/vla/action (always), /carma/cmd_vel (drive:=true only)
+```
+
+At `rate_hz` (2 Hz by default) it takes the newest pair from each camera,
+scales each frame to `image_width` (320 px), and sends one request: the arm
+camera as primary, because it is the one that finds and approaches targets,
+and the world camera in `views`. `primary:=world` swaps them. A camera whose
+newest pair is older than `max_frame_age_s` is left out; without a fresh
+primary frame nothing is sent.
+
+**What speech does.**
+
+| Said | Effect |
+|---|---|
+| A sentence, e.g. "pick up the red bottle by the second row" | Becomes the instruction, and the pipeline runs |
+| "turn left", "turn right" | Become the instruction |
+| "stop" | Pauses: no requests, and a halt with `drive:=true` |
+| "go" | Resumes the instruction in force |
+| "yes", "no", rejected clips | Ignored |
+
+Any utterance over four words is a correction to the speech grammar
+(`carma.operator.speech`), and that is what makes it an instruction here.
+
+**Safety.** Driving is off unless `drive:=true`. With it on, a spoken stop, a
+policy `stop`, or a policy server that does not answer each command zero
+velocity: a dead link means stop, never "keep doing the last thing". This path
+has no arbiter, so it is a demonstration and data-collection tool, not an
+experimental condition, and nothing it does reaches the decision log.
+
+Checked end to end in Docker with the echo policy: no requests before an
+instruction; 2 per second after one, each carrying the arm pair as `image` /
+`image_right` and the world pair as `views`; none after "stop"; a rejected
+"stop" ignored; "go" resumed; zero velocity after "stop" and while the server
+was down. The same with both cameras coming from Gazebo (`arm:=true`).
+
+```bash
+python scripts/policy_server.py --policy echo --host 0.0.0.0     # on the host
+docker compose -f docker/compose.yaml --profile vla up vla        # the pipeline
+```
 
 ## Determinism across a process boundary
 

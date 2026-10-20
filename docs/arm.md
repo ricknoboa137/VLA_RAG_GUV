@@ -38,8 +38,16 @@ section 15 of `BOM-dimensions.md`.
 The pick zone is directly ahead of the bumper, and the hood's front edge hides
 exactly that strip from the head camera — on the real platform and in the
 simulation alike. The head camera finds the object on the approach; the
-**wrist camera** that ships with the arm has to guide the grasp. Drive with the
+**stereo camera on the arm** — the project's 3D USB camera — has to guide the
+grasp. Drive with the
 arm folded flat: upright, it shadows more of the ground ahead.
+
+## The camera on the arm
+
+The project's 3D USB stereo camera rides on the arm and is the VLA pipeline's
+primary view (`docs/vla-integration.md`); the world camera on the platform is
+the headset's. It moves the arm's centre of mass outward, so re-check that the
+arm holds its poses once the camera is mounted.
 
 ## In simulation
 
@@ -56,8 +64,8 @@ plus `models/so101_follower` on a plate over the front guard. Topics:
 |---|---|---|
 | `/carma/arm/<joint>/cmd_pos` | `std_msgs/Float64`, radians | to the arm |
 | `/carma/arm/joint_states` | `sensor_msgs/JointState` | from the arm |
-| `/carma/arm/wrist/image_rgb` | `sensor_msgs/Image`, `rgb8` | wrist camera |
-| `/carma/arm/wrist/camera_info` | `sensor_msgs/CameraInfo` | wrist camera |
+| `/carma/arm/stereo/{left,right}/image_raw` | `sensor_msgs/Image`, `bgr8` | arm stereo camera |
+| `/carma/arm/stereo/{left,right}/camera_info` | `sensor_msgs/CameraInfo` | arm stereo camera |
 
 Joints: `shoulder_pan`, `shoulder_lift`, `elbow_flex`, `wrist_flex`,
 `wrist_roll`, `gripper`. Frames, limits and masses are the URDF's, so joint
@@ -73,7 +81,7 @@ The simulated body is the larger photographed platform, not the CAD, so the
 arm sits higher there and reaches about 0.13 m past the guard. Use the
 simulation for control and for what the cameras see, not for reach numbers.
 Checked running in Gazebo Harmonic: each joint settles within 0.05 rad of its
-command, the arm holds its pose under gravity, the wrist camera streams, and
+command, the arm holds its pose under gravity, the arm camera streams, and
 the vehicle still drives with the arm on.
 
 ## On the real arm

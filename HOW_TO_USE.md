@@ -39,12 +39,13 @@ everything at once.
 |---|---|
 | Camera → vision container → analysis results and browser viewer | Works |
 | PC or Quest microphone → voice container → text and intent back to the sender | Works |
-| Camera → Quest headset (mono or stereo) | Works, but **directly from `webcam_mqtt.py`**, not through the vision container |
+| Camera → Quest headset (mono or stereo) | Works, directly from `webcam_mqtt.py`, or through the vision container with `VR_TOPIC=MqttVidFeed` so the same camera also feeds the viewer and the VLA |
+| World and arm stereo cameras + speech → VLA policy server (`carma_vla`) | Works with the stand-in policy (Option D, section 4) |
 | Quest controller and head pose → `test1` topic | Published. Nothing in this repository reads it yet; the robot side that does is not here |
 | Gazebo simulation: cameras, depth, odometry, driving with `/carma/cmd_vel` | Works |
 | Experiments (`carma run`) on the synthetic simulator | Works, and writes reproducible manifests |
 | Experiments on Gazebo | **Not yet.** `carma_bridge` and `src/carma/sim/gazebo.py` are skeletons; use `sim.kind: synthetic` |
-| A real VLA model as the backbone | Not yet. `policy_server.py --policy echo` stands in; the X-VLA slot is deliberately unimplemented (see `docs/vla-integration.md`) |
+| A real VLA model behind the policy server | Not yet. `policy_server.py --policy echo` stands in; the X-VLA slot is deliberately unimplemented (see `docs/vla-integration.md`) |
 
 **One camera, one reader.** A USB camera can be opened by only one program at
 a time. With a single camera you therefore choose either the **analysis +
@@ -199,6 +200,50 @@ must allow `mosquitto.exe` inbound.
 Run Option A's terminals 1 and 3. Then run two camera senders, one per camera:
 `python scripts/webcam_mqtt.py --camera 0` for the vision container, and the
 Option B command with `--camera 1` for the headset.
+
+### Option D: two stereo cameras and speech into the VLA
+
+The robot carries two stereo cameras. The **world camera** gives the platform's
+view and goes to the headset; the **arm camera** — the 3D USB camera, mounted
+on the SO-101 arm — finds and approaches targets. Each camera has exactly one
+sender, and the vision container fans the world camera out to the headset, the
+viewer and the VLA.
+
+**Terminal 1. The policy server**, reachable from the containers:
+
+```bash
+python scripts/policy_server.py --policy echo --host 0.0.0.0
+```
+
+**Terminal 2. The containers.** `ARM_CAMERA=true` adds the arm camera,
+`VR_TOPIC=MqttVidFeed` sends the world camera to the headset:
+
+```bash
+MQTT_CAMERA=true ARM_CAMERA=true VR_TOPIC=MqttVidFeed docker compose -f docker/compose.yaml up -d vision voice viewer
+docker compose -f docker/compose.yaml --profile vla up -d vla
+```
+
+**Terminals 3 and 4. One sender per camera.** The arm camera is the 3D USB
+camera in side-by-side mode; the world camera keeps the default source:
+
+```bash
+python scripts/webcam_mqtt.py --camera 1 --width 1280 --height 480 --source arm_source
+python scripts/webcam_mqtt.py --camera 0 --width 1280 --height 480
+```
+
+With only the arm camera connected, skip the world sender: the pipeline runs on
+the arm camera alone.
+
+**Terminal 5. Tell it what to do**, with `mic_mqtt.py` as in Option A or the
+headset's **B** button: say a sentence such as "pick up the red bottle by the
+second row". "stop" pauses it, "go" resumes. Watch the answers:
+
+```bash
+docker compose -f docker/compose.yaml run --rm shell ros2 topic echo /carma/vla/action
+```
+
+It does not drive unless started with `VLA_DRIVE=true`. Details, and what every
+spoken command does: `docs/vla-integration.md`.
 
 ---
 
@@ -363,7 +408,7 @@ Then move a joint from the shell, angles in radians:
 ros2 topic pub --once /carma/arm/shoulder_lift/cmd_pos std_msgs/msg/Float64 '{data: -0.8}'
 ```
 
-Joints, topics, the wrist camera and why the arm is on the front:
+Joints, topics, the arm's stereo camera and why the arm is on the front:
 `docs/arm.md`.
 
 **See it in a window.** On Windows 11 this goes through the WSLg X server. It
@@ -586,9 +631,9 @@ All tests run offline, with no GPU and no simulator, in well under a minute.
 | File | What it does | Why it is needed |
 |---|---|---|
 | `README.md` | The four packages and how to build them | |
-| `carma_vision/carma_vision/mqtt_camera_node.py` | Turns JPEG frames from the broker into ROS stereo image topics | Lets a PC webcam stand in for the robot's camera |
+| `carma_vision/carma_vision/mqtt_camera_node.py` | Turns JPEG frames from the broker into ROS stereo image topics; one instance per camera (world, arm) | Lets a PC camera stand in for the robot's cameras |
 | `carma_vision/carma_vision/analysis_node.py` | Runs the scene analyzers from `configs/analyzers/` on the camera and publishes the results | Live plant-health results, or your own model's |
-| `carma_vision/carma_vision/stream_node.py` | Publishes the stereo camera to the broker as side-by-side JPEG | Feeds the browser viewer |
+| `carma_vision/carma_vision/stream_node.py` | Publishes the world camera to the broker as side-by-side JPEG, and optionally to the headset | Feeds the browser viewer and the Quest |
 | `carma_vision/carma_vision/mqtt_link.py` | A small auto-reconnecting MQTT client | Shared by the three nodes |
 | `carma_vision/carma_vision/stereo.py` | Joins and encodes left and right frames | Kept free of ROS so it can be unit-tested |
 | `carma_vision/config/vision.yaml` | Topics, rates and broker settings of the three nodes | Change camera topics without touching code |
@@ -601,12 +646,16 @@ All tests run offline, with no GPU and no simulator, in well under a minute.
 | `carma_voice/test/test_audio.py` | Tests `audio.py` | Run with `colcon test` |
 | `carma_sim/worlds/row_crop.sdf` | The row-crop field, as a template expanded per crop stage | The simulated experimental world |
 | `carma_sim/models/carma_ugv/model.sdf`, `model.config` | The tractor-style UGV: body, wheels, stereo camera, depth camera, odometry | The simulated robot, shaped like the real one |
-| `carma_sim/models/so101_follower/model.sdf`, `model.config` | The SO-101 arm: six position-controlled joints from the official URDF, and a wrist camera | The arm, testable before the real one is built |
+| `carma_sim/models/so101_follower/model.sdf`, `model.config` | The SO-101 arm: six position-controlled joints from the official URDF, and the stereo camera it carries | The arm, testable before the real one is built |
 | `carma_sim/models/carma_ugv_arm/model.sdf`, `model.config` | `carma_ugv` unchanged, plus the arm on a plate over the front guard | Spawned instead of `carma_ugv` with `arm:=true` |
 | `carma_sim/launch/row_crop.launch.py` | Expands the world for the chosen stage, then starts Gazebo, the ROS bridge and `bgr_relay` | Used by the `sim` service |
 | `carma_sim/config/bridge.yaml` | Maps Gazebo topics onto the ROS topic names | The simulator meets the same topic contract as the real robot |
 | `carma_sim/scripts/bgr_relay.py` | Converts the simulator's RGB images to BGR | Gazebo cannot output BGR, and the project uses BGR throughout |
 | `carma_sim/README.md` | World, stage argument, robot geometry, sensor details | Reference for the simulation |
+| `carma_vla/carma_vla/vla_node.py` | Takes both stereo cameras and the operator's speech, asks the policy server, publishes the action | The live link from sensors and voice to the VLA |
+| `carma_vla/carma_vla/pipeline.py` | What speech does to the instruction, and how frames become one request | Kept free of ROS so it can be unit-tested |
+| `carma_vla/config/vla.yaml`, `launch/vla.launch.py` | Policy address, rate, primary camera, image size, drive switch | Used by the `vla` service |
+| `carma_vla/test/test_pipeline.py` | Tests `pipeline.py` | Run with `colcon test` |
 | `carma_bridge/carma_bridge/bridge_node.py` | Skeleton of the node that will join ROS and the library | Marks where the Gazebo experiment link will be built |
 | `carma_bridge/README.md` | The ROS topic contract between robot and library | Both the simulator and the real robot must publish these topics |
 | `*/package.xml`, `setup.py`, `setup.cfg`, `CMakeLists.txt`, `resource/*`, `__init__.py` | ROS package metadata and build files | Required by `colcon` to build and install each package |

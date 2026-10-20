@@ -1,0 +1,32 @@
+carma_vla:
+  ros__parameters:
+    # scripts/policy_server.py on the host; start it with --host 0.0.0.0 so the
+    # container can reach it.
+    policy_url: http://host.docker.internal:8000/act
+    rate_hz: 2.0
+    timeout_s: 5.0
+    # The arm camera finds and approaches targets, so it is the primary view;
+    # the world camera rides along in the request's views.
+    primary: arm
+    cameras: [world, arm]
+    world_left_topic: /carma/stereo/left/image_raw
+    world_right_topic: /carma/stereo/right/image_raw
+    arm_left_topic: /carma/arm/stereo/left/image_raw
+    arm_right_topic: /carma/arm/stereo/right/image_raw
+    sync_slop_s: 0.05
+    # A camera whose newest pair is older than this is left out of the request;
+    # if it is the primary, no request is sent.
+    max_frame_age_s: 1.0
+    # Frames are scaled to this width before encoding; VLAs take 224-256 px.
+    image_width: 320
+    utterance_topic: /carma/operator/utterance
+    odom_topic: /carma/odom
+    # Optional starting instruction; normally the operator says one.
+    instruction: ""
+    stage: VEGETATIVE
+    seed: 0
+    samples: 4
+    action_topic: /carma/vla/action
+    # Off: actions are published on action_topic only. On: also /carma/cmd_vel.
+    drive: false
+    cmd_vel_topic: /carma/cmd_vel

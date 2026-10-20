@@ -29,6 +29,14 @@ small JSON messages MQTT is the right choice.
 - **No rate adaptation.** When the link degrades, MQTT keeps sending at the
   same size until buffers fill. WebRTC measures the link and lowers bitrate.
 
+## The headset today
+
+Until the WebRTC path exists, the Quest client reads base64 JPEG frames on
+`MqttVidFeed`. The vision container can send them (`vr_topic: MqttVidFeed` in
+`carma_vision/config/vision.yaml`, or `VR_TOPIC=MqttVidFeed` for compose), so
+the world camera is read once and feeds the headset, the browser viewer and
+the VLA pipeline together. The arm camera does not go to the headset.
+
 ## Planned VR path
 
 ```

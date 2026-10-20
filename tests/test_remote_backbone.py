@@ -231,3 +231,38 @@ def test_it_is_registered_for_config() -> None:
     # Registry.keys() returns a tuple, not a mapping view.
     registered = BACKBONES.keys()
     assert "remote" in registered
+
+
+def test_extra_camera_views_round_trip_in_order() -> None:
+    request = ActRequest(
+        image="L",
+        image_right="R",
+        instruction="pick up the red bottle",
+        pose=(0.0, 0.0, 0.0),
+        t=0.0,
+        stage="VEGETATIVE",
+        seed=0,
+        views=(("world_left", "WL"), ("world_right", "WR")),
+    )
+    payload = request.to_json()
+    assert payload["views"] == {"world_left": "WL", "world_right": "WR"}
+    assert list(payload["views"]) == ["world_left", "world_right"]
+    assert ActRequest.from_json(payload) == request
+
+
+def test_a_request_without_views_has_none() -> None:
+    payload = {"image": "x", "instruction": "y", "pose": [0, 0, 0], "t": 0, "stage": "V", "seed": 1}
+    assert ActRequest.from_json(payload).views == ()
+
+
+def test_duplicate_view_names_are_rejected() -> None:
+    with pytest.raises(ValueError, match="unique"):
+        ActRequest(
+            image="x",
+            instruction="y",
+            pose=(0.0, 0.0, 0.0),
+            t=0.0,
+            stage="V",
+            seed=0,
+            views=(("arm_left", "a"), ("arm_left", "b")),
+        )

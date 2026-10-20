@@ -167,7 +167,7 @@ the front guard. `arm:=true` spawns the second one, still named `carma_ugv`.
 | Reach, shoulder-lift axis to the jaws | 0.410 m |
 | Arm mass | 0.632 kg, link by link from the URDF |
 | Joint effort / speed limit | 2.94 N·m / 4.7 rad/s (12 V STS3215) |
-| Wrist camera | 640 × 480, 70° horizontal, 15 Hz, `rgb8`, looking down the jaws |
+| Arm stereo camera | 60 mm baseline, 640 × 480 per eye, 58.9° horizontal, 15 Hz, looking down the jaws |
 
 Kinematics, joint limits and link masses are copied from the official URDF
 (`Simulation/SO101/so101_new_calib.urdf` in TheRobotStudio/SO-ARM100,
@@ -177,7 +177,7 @@ its command, and the vehicle still drives on `/carma/cmd_vel` with the arm on.
 
 The head camera sees the ground from about 1.8 m ahead, and the pick zone ends
 about 1.0 m ahead of `base_link`, so the head camera never sees a grasp; the
-wrist camera does. The arm enters the head camera's frame only when lifted
+arm's stereo camera does. The arm enters the head camera's frame only when lifted
 above about 0.5 m at the front. The chassis inertia is not adjusted for the
 arm, which is why `arm:=true` stays off for recorded runs.
 
@@ -199,7 +199,8 @@ the three files rather than a remap to chase.
 Also bridged, outside the contract: the three `camera_info` topics, `/clock`
 and `/carma/joint_states`; and, published only with `arm:=true`,
 `/carma/arm/<joint>/cmd_pos`, `/carma/arm/joint_states` and
-`/carma/arm/wrist/{image_rgb,camera_info}`.
+`/carma/arm/stereo/{left,right}/{image_rgb,camera_info}`, relayed to `bgr8` on
+`/carma/arm/stereo/{left,right}/image_raw`.
 
 ### Why the stereo pair takes a detour
 

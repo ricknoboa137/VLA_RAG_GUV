@@ -10,6 +10,12 @@ these frames back into ROS image topics.
 With one webcam the frame is sent as mono and the container duplicates it into
 both eyes; ``--right-camera`` sends a real side-by-side pair from two cameras.
 
+The robot has two stereo cameras, one sender each: the world camera (the
+platform's view, the default ``--source source``) and the camera on the arm
+(``--source arm_source``), which the container turns into
+``/carma/arm/stereo/*``. A USB camera can be opened by only one program, so
+each physical camera gets exactly one of these.
+
 The Quest client in ``vr/unity`` reads a different topic and expects the JPEG
 as base64 text rather than bytes, so feeding the headset directly needs both
 overrides:
@@ -65,9 +71,15 @@ def main() -> int:
     parser.add_argument("--port", type=int, default=1883)
     parser.add_argument("--prefix", default="carma")
     parser.add_argument(
+        "--source",
+        default="source",
+        help="MQTT subtree under the prefix: 'source' for the world camera, "
+        "'arm_source' for the camera on the arm",
+    )
+    parser.add_argument(
         "--topic",
         default=None,
-        help="frame topic; defaults to <prefix>/source/frame. Use MqttVidFeed for the Quest client",
+        help="frame topic; defaults to <prefix>/<source>/frame. Use MqttVidFeed for the Quest client",
     )
     parser.add_argument(
         "--encoding",
@@ -80,7 +92,7 @@ def main() -> int:
     parser.add_argument("--fps", type=float, default=15.0)
     parser.add_argument("--quality", type=int, default=80, help="JPEG quality 1-100")
     args = parser.parse_args()
-    frame_topic = args.topic if args.topic is not None else f"{args.prefix}/source/frame"
+    frame_topic = args.topic if args.topic is not None else f"{args.prefix}/{args.source}/frame"
 
     left = _open(args.camera, args.width, args.height)
     right = (
@@ -97,7 +109,7 @@ def main() -> int:
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="carma-webcam")
     client.connect(args.host, args.port, keepalive=30)
     client.loop_start()
-    client.publish(f"{args.prefix}/source/meta", json.dumps({"layout": layout}), qos=1, retain=True)
+    client.publish(f"{args.prefix}/{args.source}/meta", json.dumps({"layout": layout}), qos=1, retain=True)
 
     period = 1.0 / args.fps
     sent = 0

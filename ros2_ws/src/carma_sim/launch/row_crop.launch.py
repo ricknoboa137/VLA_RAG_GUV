@@ -137,7 +137,19 @@ def _expand_world(context: LaunchContext) -> list[ExecuteProcess | Node]:
             executable="bgr_relay.py",
             name="carma_bgr_relay",
             output="screen",
-            parameters=[{"use_sim_time": True}],
+            parameters=[
+                {
+                    "use_sim_time": True,
+                    # The arm camera pair only has publishers with arm:=true;
+                    # relaying a silent topic costs nothing.
+                    "pairs": [
+                        "/carma/stereo/left/image_rgb:/carma/stereo/left/image_raw",
+                        "/carma/stereo/right/image_rgb:/carma/stereo/right/image_raw",
+                        "/carma/arm/stereo/left/image_rgb:/carma/arm/stereo/left/image_raw",
+                        "/carma/arm/stereo/right/image_rgb:/carma/arm/stereo/right/image_raw",
+                    ],
+                }
+            ],
         ),
     ]
 

@@ -130,16 +130,28 @@
   gz_type_name: "gz.msgs.Double"
   direction: ROS_TO_GZ
 
-# Wrist camera: the only camera that sees the pick zone ahead of the guard.
-# rgb8, as Gazebo renders it; see models/so101_follower/model.sdf.
-- ros_topic_name: "/carma/arm/wrist/image_rgb"
-  gz_topic_name: "/carma/arm/wrist/image_rgb"
+# Stereo camera on the arm: the only camera that sees the pick zone ahead of
+# the guard. rgb8 here; bgr_relay puts bgr8 on .../image_raw.
+- ros_topic_name: "/carma/arm/stereo/left/image_rgb"
+  gz_topic_name: "/carma/arm/stereo/left/image_rgb"
   ros_type_name: "sensor_msgs/msg/Image"
   gz_type_name: "gz.msgs.Image"
   direction: GZ_TO_ROS
 
-- ros_topic_name: "/carma/arm/wrist/camera_info"
-  gz_topic_name: "/carma/arm/wrist/camera_info"
+- ros_topic_name: "/carma/arm/stereo/left/camera_info"
+  gz_topic_name: "/carma/arm/stereo/left/camera_info"
+  ros_type_name: "sensor_msgs/msg/CameraInfo"
+  gz_type_name: "gz.msgs.CameraInfo"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "/carma/arm/stereo/right/image_rgb"
+  gz_topic_name: "/carma/arm/stereo/right/image_rgb"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "/carma/arm/stereo/right/camera_info"
+  gz_topic_name: "/carma/arm/stereo/right/camera_info"
   ros_type_name: "sensor_msgs/msg/CameraInfo"
   gz_type_name: "gz.msgs.CameraInfo"
   direction: GZ_TO_ROS

@@ -7,10 +7,18 @@ and has no rate adaptation, and WebRTC is the planned transport for that path.
 Topics (``<p>`` is ``mqtt_prefix``):
     ``<p>/camera/frame``  JPEG bytes, QoS 0, newest frame wins
     ``<p>/camera/meta``   retained JSON: layout, width, height, rate
+    ``vr_topic``          optional, the same frame as base64 text, for the Quest
+                          client in ``vr/unity`` (``MqttVidFeed``). ``none`` or
+                          empty disables it.
+
+With ``vr_topic`` set, the world camera reaches the headset through this node,
+so one USB camera feeds the headset, the browser viewer and the VLA pipeline
+at once instead of being claimed by ``webcam_mqtt.py --topic MqttVidFeed``.
 """
 
 from __future__ import annotations
 
+import base64
 import json
 
 import message_filters
@@ -39,6 +47,7 @@ class StreamNode(Node):
         self.declare_parameter("mqtt_host", "broker")
         self.declare_parameter("mqtt_port", 1883)
         self.declare_parameter("mqtt_prefix", "carma")
+        self.declare_parameter("vr_topic", "")
 
         param = self.get_parameter
         self._stereo = bool(param("stereo").value)
@@ -48,6 +57,8 @@ class StreamNode(Node):
         prefix = param("mqtt_prefix").value
         self._frame_topic = f"{prefix}/camera/frame"
         self._meta_topic = f"{prefix}/camera/meta"
+        vr_topic = str(param("vr_topic").value)
+        self._vr_topic = "" if vr_topic in ("", "none") else vr_topic
         self._mqtt = MqttLink(param("mqtt_host").value, param("mqtt_port").value, "carma-stream")
 
         self._bridge = CvBridge()
@@ -99,7 +110,10 @@ class StreamNode(Node):
             }
             self._mqtt.publish(self._meta_topic, json.dumps(meta), qos=1, retain=True)
             self._meta_sent = size
-        self._mqtt.publish(self._frame_topic, encode_jpeg(frame, self._quality), qos=0)
+        jpeg = encode_jpeg(frame, self._quality)
+        self._mqtt.publish(self._frame_topic, jpeg, qos=0)
+        if self._vr_topic:
+            self._mqtt.publish(self._vr_topic, base64.b64encode(jpeg), qos=0)
 
     def destroy_node(self) -> None:
         self._mqtt.close()

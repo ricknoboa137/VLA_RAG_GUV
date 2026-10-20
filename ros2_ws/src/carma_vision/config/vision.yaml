@@ -8,6 +8,18 @@ carma_mqtt_camera:
     frame_id: camera
     mono_as_stereo: true
 
+# The stereo camera on the SO-101 arm, for finding and approaching targets.
+# Fed by: python scripts/webcam_mqtt.py --source arm_source ...
+carma_mqtt_arm_camera:
+  ros__parameters:
+    mqtt_port: 1883
+    mqtt_prefix: carma
+    source: arm_source
+    left_topic: /carma/arm/stereo/left/image_raw
+    right_topic: /carma/arm/stereo/right/image_raw
+    frame_id: arm_camera
+    mono_as_stereo: true
+
 carma_analysis:
   ros__parameters:
     analyzers_config: /opt/carma/configs/analyzers/field.yaml
@@ -29,3 +41,7 @@ carma_stream:
     max_width: 2560
     mqtt_port: 1883
     mqtt_prefix: carma
+    # MqttVidFeed sends the world camera to the Quest client (base64 JPEG) from
+    # here, so webcam_mqtt.py need not claim the camera for the headset.
+    # none disables it. Not "off": ROS reads an unquoted off as a boolean.
+    vr_topic: none

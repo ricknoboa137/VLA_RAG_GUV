@@ -95,6 +95,14 @@ class EchoPolicy:
             model_id=self.model_id,
             model_revision=None,
             inference_s=time.monotonic() - started,
+            # What arrived, so a live pipeline can be checked end to end
+            # before a model that reads the extra views is plugged in.
+            info={
+                "image_shape": list(image.shape),
+                "stereo": request.image_right is not None,
+                "views": [name for name, _ in request.views],
+                "instruction": request.instruction,
+            },
         )
 
 

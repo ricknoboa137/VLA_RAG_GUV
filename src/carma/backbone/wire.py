@@ -100,6 +100,13 @@ class ActRequest:
         samples: How many action chunks to draw. Their spread becomes the
             uncertainty, so one sample means the server must say so rather
             than invent a confident number.
+        views: Further camera frames, as ``(name, base64 PNG BGR)`` pairs in a
+            fixed order, for a robot with more than one camera. ``image`` and
+            ``image_right`` are the primary camera; a second stereo camera
+            arrives here as ``<camera>_left`` and ``<camera>_right``, for
+            example ``world_left``. A policy that uses one view must still
+            accept the others. On the wire this is a JSON object, whose key
+            order is kept.
     """
 
     image: str
@@ -112,12 +119,20 @@ class ActRequest:
     context: tuple[str, ...] = ()
     image_right: str | None = None
     depth_mm: str | None = None
+    views: tuple[tuple[str, str], ...] = ()
+
+    def __post_init__(self) -> None:
+        names = [name for name, _ in self.views]
+        if len(set(names)) != len(names):
+            msg = f"view names must be unique, got {names}"
+            raise ValueError(msg)
 
     def to_json(self) -> dict[str, Any]:
         """A plain dict ready for ``json.dumps``."""
         payload = asdict(self)
         payload["context"] = list(self.context)
         payload["pose"] = list(self.pose)
+        payload["views"] = dict(self.views)
         return payload
 
     @staticmethod
@@ -143,6 +158,7 @@ class ActRequest:
             context=tuple(str(c) for c in payload.get("context", ())),
             image_right=payload.get("image_right"),
             depth_mm=payload.get("depth_mm"),
+            views=tuple((str(k), str(v)) for k, v in dict(payload.get("views", {})).items()),
         )
 
 

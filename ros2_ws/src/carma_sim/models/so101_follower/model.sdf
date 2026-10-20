@@ -21,8 +21,8 @@
   Topics (gz side; bridged by config/bridge.yaml only when the arm is spawned)
     /carma/arm/<joint>/cmd_pos   gz.msgs.Double, target angle in radians
     /carma/arm/joint_states      gz.msgs.Model, all six joints
-    /carma/arm/wrist/image_rgb   gz.msgs.Image, 640 x 480 rgb8, 15 Hz, 70 deg
-    /carma/arm/wrist/camera_info gz.msgs.CameraInfo
+    /carma/arm/stereo/{left,right}/image_rgb    gz.msgs.Image, 640 x 480 rgb8, 15 Hz
+    /carma/arm/stereo/{left,right}/camera_info  gz.msgs.CameraInfo
   Joints: shoulder_pan, shoulder_lift, elbow_flex, wrist_flex, wrist_roll,
   gripper.
 
@@ -118,20 +118,38 @@
         <geometry><cylinder><radius>0.018</radius><length>0.0362</length></cylinder></geometry>
       </collision>
       <!--
-        Wrist camera, as shipped with the SO-101 kits. Mount position is an
-        estimate: on the gripper housing, looking down the jaws (-z of this
-        link), so the grasp target is in frame when the hand points at it.
-        rgb8 like the stereo pair; not relayed to bgr8, because nothing in the
-        library consumes it yet.
+        Stereo camera on the arm: the project's 3D USB camera, which rides on
+        the arm to find and approach targets. 60 mm baseline and 58.9 deg
+        horizontal field of view (567.5 px focal length at 640 px, from
+        config/stereo_3dusb.json). The real camera is toed in; these two are
+        parallel. Mount position is an estimate: on the gripper housing,
+        looking down the jaws (-z of this link). rgb8, swapped to bgr8 on
+        .../image_raw by bgr_relay like the head camera.
       -->
-      <sensor name="wrist_camera" type="camera">
-        <pose>0 0.025 -0.03 0 1.5708 0</pose>
-        <topic>/carma/arm/wrist/image_rgb</topic>
+      <sensor name="arm_stereo_left" type="camera">
+        <pose>0 0.055 -0.03 0 1.5708 0</pose>
+        <topic>/carma/arm/stereo/left/image_rgb</topic>
         <update_rate>15</update_rate>
         <always_on>true</always_on>
         <camera>
-          <camera_info_topic>/carma/arm/wrist/camera_info</camera_info_topic>
-          <horizontal_fov>1.2217</horizontal_fov>
+          <camera_info_topic>/carma/arm/stereo/left/camera_info</camera_info_topic>
+          <horizontal_fov>1.0277</horizontal_fov>
+          <image>
+            <width>640</width>
+            <height>480</height>
+            <format>R8G8B8</format>
+          </image>
+          <clip><near>0.02</near><far>5.0</far></clip>
+        </camera>
+      </sensor>
+      <sensor name="arm_stereo_right" type="camera">
+        <pose>0 -0.005 -0.03 0 1.5708 0</pose>
+        <topic>/carma/arm/stereo/right/image_rgb</topic>
+        <update_rate>15</update_rate>
+        <always_on>true</always_on>
+        <camera>
+          <camera_info_topic>/carma/arm/stereo/right/camera_info</camera_info_topic>
+          <horizontal_fov>1.0277</horizontal_fov>
           <image>
             <width>640</width>
             <height>480</height>
