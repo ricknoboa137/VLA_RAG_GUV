@@ -45,7 +45,8 @@ everything at once.
 | Gazebo simulation: cameras, depth, odometry, driving with `/carma/cmd_vel` | Works |
 | Experiments (`carma run`) on the synthetic simulator | Works, and writes reproducible manifests |
 | Experiments on Gazebo | **Not yet.** `carma_bridge` and `src/carma/sim/gazebo.py` are skeletons; use `sim.kind: synthetic` |
-| A real VLA model behind the policy server | Not yet. `policy_server.py --policy echo` stands in; the X-VLA slot is deliberately unimplemented (see `docs/vla-integration.md`) |
+| A real VLA model behind the policy server, driving the arm | Works in Gazebo: SmolVLA or X-VLA moves the SO-101 from the arm camera and a spoken instruction (Option E, section 4). Community checkpoints: no task skill is claimed |
+| A VLA model driving the wheeled base | Not yet: no released checkpoint predicts navigation actions (`docs/vla-integration.md`) |
 
 **One camera, one reader.** A USB camera can be opened by only one program at
 a time. With a single camera you therefore choose either the **analysis +
@@ -244,6 +245,51 @@ docker compose -f docker/compose.yaml run --rm shell ros2 topic echo /carma/vla/
 
 It does not drive unless started with `VLA_DRIVE=true`. Details, and what every
 spoken command does: `docs/vla-integration.md`.
+
+### Option E: drive the SO-101 arm by voice with SmolVLA or X-VLA
+
+A real VLA behind the policy server moves the arm from the arm camera, the
+world camera and the operator's instruction. Checked in Gazebo with both
+models. Needs the `carma-train` environment (`training/README.md`) and the
+checkpoints, fetched once (3 GB):
+
+```powershell
+$py = "$env:USERPROFILE\anaconda3\envs\carma-train\python.exe"
+& $py scripts/fetch_training_assets.py svla_so101_red_cube
+& $py scripts/fetch_training_assets.py xvla_so101_red_cube
+& $py scripts/fetch_training_assets.py smolvlm2-500m-video-instruct
+& $py scripts/fetch_training_assets.py bart-large-tokenizer
+```
+
+**Terminal 1. The model**, on the host, from the repository root. `--policy xvla`
+serves the other one; nothing else changes.
+
+```powershell
+$env:PYTHONPATH = "src"
+& $py scripts/policy_server.py --policy smolvla --self-check --host 0.0.0.0
+```
+
+**Terminal 2. The simulated robot with its arm**, as in section 8:
+
+```bash
+docker compose -f docker/compose.yaml --profile sim run --rm sim ros2 launch carma_sim row_crop.launch.py arm:=true
+```
+
+**Terminal 3. The pipeline, with the arm switched on**, plus the speech service
+from Option A if it is not running:
+
+```bash
+VLA_ARM=true docker compose -f docker/compose.yaml --profile vla up vla voice
+```
+
+**Then say** "pick up the red cube" (`mic_mqtt.py` or the headset's **B**
+button). The arm moves; "stop" holds it where it is, "go" resumes. Each answer
+is on `/carma/vla/action`, naming the model, its revision and its uncertainty.
+
+The two checkpoints were fine-tuned by a third party on a red-cube task, and
+the simulated world has no red cube: this shows the whole path working, not
+the models' skill. How the two are compared, and what a fair benchmark still
+needs: `docs/arm-policies.md`.
 
 ---
 
@@ -545,6 +591,7 @@ only travel in the directions shown in `AGENTS.md` section 3;
 | `metrics/interaction.py` | Queries per 100 m, interventions per hectare, neglect time, total operator latency | **The project's distinctive measurement:** what each choice costs the operator |
 | `metrics/retrieval.py` | Whether retrieval found the right thing | Separates "retrieved well" from "acted well anyway" |
 | `metrics/systems.py` | Decision-latency summary | Shows the loop is fast enough to run on the robot |
+| `metrics/arm.py` | Open-loop joint error, uncertainty-error rank correlation, latency, for arm policies | Compares SmolVLA with X-VLA; outside `MetricBundle`, because the arm is outside the experiments |
 | `metrics/bundle.py` | `MetricBundle`, one struct holding every reported number | Every paper number comes from one place (`AGENTS.md`, rule 5) |
 | `metrics/__init__.py` | Package docstring | |
 | `cli/main.py` | The `carma` command: `run`, `report`, `components` | The entry point for every experiment |
@@ -566,7 +613,9 @@ All tests run offline, with no GPU and no simulator, in well under a minute.
 | `test_memory.py` | Store, embedders, retriever and hygiene |
 | `test_metrics.py` | Every metric against a value computed by hand |
 | `test_runtime.py` | A full episode loop on the synthetic simulator |
-| `test_remote_backbone.py` | The remote backbone and its wire format, without opening a socket |
+| `test_remote_backbone.py` | The remote backbone and its wire format, arm fields included, without opening a socket |
+| `test_arm_policy.py` | The arm policy adapter's units, spread, uncertainty and camera mapping, and that the two compared specs differ only by the model |
+| `test_metrics_arm.py` | The arm-policy metrics against hand-computed values |
 | `test_perception.py` | Image cues are bounded and deterministic |
 | `test_analyzers.py` | Analyzers are bounded, deterministic and buildable from config |
 | `test_speech.py` | Every speech intent, stated by hand |
@@ -588,6 +637,7 @@ All tests run offline, with no GPU and no simulator, in well under a minute.
 | `experiment/sim_study.yaml` | The 100-episode simulation study | The main experiment; copy once per condition |
 | `experiment/remote_smoke.yaml` | The smoke run with the backbone served over HTTP | Proves the client–server path before a real model is used |
 | `analyzers/field.yaml` | Which scene analyzers the vision container runs | Kept apart from experiment configs, so editing it never changes a result's hash |
+| `arm_policy/svla_so101_red_cube.yaml`, `xvla_so101_red_cube.yaml` | The two arm policies: checkpoint, revision, camera slots, joint units, uncertainty map | A model is swapped by naming another spec; not experiment configs, never in a hash |
 
 ### `config/` and `experiments/`: camera calibration and evidence
 
@@ -604,11 +654,13 @@ All tests run offline, with no GPU and no simulator, in well under a minute.
 | File | What it does | Why it is needed |
 |---|---|---|
 | `fetch_models.py` | Downloads open model weights into `assets/` | The only step that touches the network, so downloads are explicit and auditable |
-| `fetch_training_assets.py` | Downloads the SmolVLA policy, its VLM config and the fine-tuning dataset into `assets/`, each pinned to a commit | The same explicit fetch for the separate training environment in `training/` |
+| `fetch_training_assets.py` | Downloads the SmolVLA and X-VLA checkpoints, their VLM config and tokenizer, and the SO-101 datasets into `assets/`, each pinned to a commit, and points them at local files | The same explicit fetch for the separate training environment in `training/` |
 | `check_pins.py` | Fails if a dependency is not pinned to an exact version | Reproducibility gate, run by `make check` and CI |
 | `webcam_mqtt.py` | Sends a webcam (mono, or a side-by-side stereo pair) to the broker | Feeds the vision container and the headset from a PC camera |
 | `mic_mqtt.py` | Records speech from a PC microphone and sends each clip to the broker | Operator speech without the headset |
-| `policy_server.py` | Serves a navigation policy over HTTP (`echo` now, the X-VLA slot later) | The other end of `backbone/remote.py` |
+| `policy_server.py` | Serves a policy over HTTP: `echo` for navigation, `smolvla` or `xvla` for the arm | The other end of `backbone/remote.py` and of `carma_vla` |
+| `arm_policy.py` | Loads SmolVLA or X-VLA through LeRobot from a spec in `configs/arm_policy/` and answers with arm chunks | The model behind `--policy smolvla` / `xvla`; torch-free parts are unit-tested |
+| `benchmark_arm_policies.py` | Feeds recorded SO-101 episodes to every arm policy server and scores their chunks | The SmolVLA-against-X-VLA comparison |
 | `stereo_depth.py` | Live depth preview and point cloud from the stereo camera | Shows the depth the robot will see |
 | `calibrate_stereo.py` | Fits the depth calibration from tape-measured distances | Produces `config/stereo_3dusb.json` |
 | `test_rolling_shutter.py` | Measures whether the camera's shutter is rolling or global | Produced `shutter.json`; matters for SLAM on a moving robot |
@@ -670,9 +722,9 @@ untouched.
 | `carma_sim/config/bridge.yaml` | Maps Gazebo topics onto the ROS topic names | The simulator meets the same topic contract as the real robot |
 | `carma_sim/scripts/bgr_relay.py` | Converts the simulator's RGB images to BGR | Gazebo cannot output BGR, and the project uses BGR throughout |
 | `carma_sim/README.md` | World, stage argument, robot geometry, sensor details | Reference for the simulation |
-| `carma_vla/carma_vla/vla_node.py` | Takes both stereo cameras and the operator's speech, asks the policy server, publishes the action | The live link from sensors and voice to the VLA |
-| `carma_vla/carma_vla/pipeline.py` | What speech does to the instruction, and how frames become one request | Kept free of ROS so it can be unit-tested |
-| `carma_vla/config/vla.yaml`, `launch/vla.launch.py` | Policy address, rate, primary camera, image size, drive switch | Used by the `vla` service |
+| `carma_vla/carma_vla/vla_node.py` | Takes both stereo cameras, the arm's joint angles and the operator's speech, asks the policy server, publishes the action, and with `arm:=true` plays arm chunks out | The live link from sensors and voice to the VLA |
+| `carma_vla/carma_vla/pipeline.py` | What speech does to the instruction, how frames become one request, how a chunk is played and clamped | Kept free of ROS so it can be unit-tested |
+| `carma_vla/config/vla.yaml`, `launch/vla.launch.py` | Policy address, rate, primary camera, image size, drive and arm switches, joint limits | Used by the `vla` service |
 | `carma_vla/test/test_pipeline.py` | Tests `pipeline.py` | Run with `colcon test` |
 | `carma_bridge/carma_bridge/bridge_node.py` | Skeleton of the node that will join ROS and the library | Marks where the Gazebo experiment link will be built |
 | `carma_bridge/README.md` | The ROS topic contract between robot and library | Both the simulator and the real robot must publish these topics |
@@ -688,6 +740,7 @@ untouched.
 | `experiments.md` | Running seeds and conditions so the comparison is controlled |
 | `simulation.md` | Why Gazebo Harmonic, and how the simulator connects |
 | `vla-integration.md` | Serving a VLA model behind `policy_server.py` |
+| `arm-policies.md` | SmolVLA and X-VLA on the SO-101: checkpoints, specs, units, uncertainty, the benchmark |
 | `analyzers.md` | Adding your own perception model |
 | `speech.md` | The speech pipeline and its rejection rules |
 | `streaming.md` | Camera streaming now (MQTT) and the planned VR transport (WebRTC) |

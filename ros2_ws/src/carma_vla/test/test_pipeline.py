@@ -4,15 +4,19 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-
-from carma.backbone.wire import ActResponse, decode_image
 from carma_vla.pipeline import (
+    ARM_JOINTS,
+    ChunkPlayer,
     InstructionState,
     action_record,
+    arm_state_from_joint_state,
     build_request,
     fit_width,
     parse_utterance_message,
+    step_toward,
 )
+
+from carma.backbone.wire import ActResponse, ArmChunk, decode_image
 
 
 def _said(intent: str, text: str, rejected: str | None = None) -> dict[str, object]:
@@ -132,3 +136,101 @@ def test_action_record_names_what_was_sent_and_what_answered() -> None:
     assert record["model_id"] == "carma:heuristic"
     assert record["linear"] == 0.3
     assert record["seed"] == 7
+    assert record["arm"] is None
+
+
+# ------------------------------------------------------------------- the arm
+
+
+def _chunk(rows: int = 3, dt_s: float = 0.1) -> ArmChunk:
+    return ArmChunk(
+        joints=("shoulder_pan", "gripper"),
+        positions_rad=tuple((0.1 * i, 0.5) for i in range(rows)),
+        dt_s=dt_s,
+    )
+
+
+def test_arm_state_comes_out_in_urdf_order() -> None:
+    names = ["gripper", "wrist_roll", "wrist_flex", "elbow_flex", "shoulder_lift", "shoulder_pan"]
+    state = arm_state_from_joint_state(names, [6.0, 5.0, 4.0, 3.0, 2.0, 1.0], ARM_JOINTS)
+    assert state == tuple(zip(ARM_JOINTS, [1.0, 2.0, 3.0, 4.0, 5.0, 6.0], strict=True))
+
+
+def test_a_partial_joint_state_is_no_state() -> None:
+    assert arm_state_from_joint_state(["gripper"], [0.1], ARM_JOINTS) == ()
+
+
+def test_the_request_carries_the_arm_state() -> None:
+    frames = {"arm": (np.zeros((8, 8, 3), dtype=np.uint8), None)}
+    state = tuple((name, 0.0) for name in ARM_JOINTS)
+    request = build_request(
+        frames,
+        "arm",
+        "pick",
+        pose=(0, 0, 0),
+        t=0,
+        stage="V",
+        seed=0,
+        samples=1,
+        width=0,
+        arm_state=state,
+    )
+    assert request.arm_state == state
+
+
+def test_the_chunk_plays_against_the_clock_from_its_start() -> None:
+    player = ChunkPlayer()
+    assert player.target(10.0) is None
+    player.load(_chunk(), t0=10.0)
+    assert player.target(10.0) == {"shoulder_pan": 0.0, "gripper": 0.5}
+    # 0.25 s after the start: row 2, whatever ticks were missed on the way.
+    assert player.target(10.25) == pytest.approx({"shoulder_pan": 0.2, "gripper": 0.5})
+    # Past the last row nothing is commanded, and the arm holds.
+    assert player.target(10.31) is None
+
+
+def test_an_older_answer_never_replaces_a_newer_one() -> None:
+    player = ChunkPlayer()
+    newer = _chunk()
+    player.load(newer, t0=5.0)
+    player.load(_chunk(rows=5), t0=4.0)
+    assert player.chunk is newer
+
+
+def test_clear_stops_the_chunk() -> None:
+    player = ChunkPlayer()
+    player.load(_chunk(), t0=0.0)
+    player.clear()
+    assert player.target(0.0) is None
+
+
+def test_a_step_is_clamped_to_the_limits_and_the_speed() -> None:
+    limits = {"shoulder_pan": (-1.0, 1.0), "gripper": (0.0, 0.4)}
+    previous = {"shoulder_pan": 0.0, "gripper": 0.38}
+    command = step_toward({"shoulder_pan": 3.0, "gripper": 0.9}, previous, 0.05, limits)
+    # The pan wants 3.0, is clamped to 1.0, and moves 0.05 toward it.
+    # The gripper wants 0.9, is clamped to 0.4, and only 0.02 remains.
+    assert command == pytest.approx({"shoulder_pan": 0.05, "gripper": 0.4})
+
+
+def test_a_joint_without_a_limit_or_a_position_is_not_commanded() -> None:
+    command = step_toward(
+        {"shoulder_pan": 0.1, "mystery": 0.2, "gripper": 0.1},
+        {"shoulder_pan": 0.0, "mystery": 0.0},
+        1.0,
+        {"shoulder_pan": (-1.0, 1.0), "gripper": (0.0, 1.0)},
+    )
+    assert command == {"shoulder_pan": 0.1}
+
+
+def test_action_record_summarises_an_arm_chunk() -> None:
+    request = _request("arm", width=64)
+    response = ActResponse(
+        0.0, 0.0, False, 0.4, "chunk_spread/uncalibrated", "m", 0.5, arm=_chunk()
+    )
+    record = action_record(response, request, "arm", 0.6)
+    assert record["arm"] == {
+        "steps": 3,
+        "dt_s": 0.1,
+        "first": {"shoulder_pan": 0.0, "gripper": 0.5},
+    }

@@ -189,6 +189,15 @@ class RemoteBackbone:
         except ValueError as exc:
             msg = f"policy server returned an unusable reply: {exc}"
             raise BackboneError(msg) from exc
+        if reply.arm is not None:
+            # A manipulator policy answers the base with zero velocity. Taking
+            # that as a navigation action would record a run of a robot that
+            # never moves, attributed to a model that never drove it.
+            msg = (
+                f"policy server answered as an arm policy ({reply.model_id}); "
+                "a navigation backbone cannot use it"
+            )
+            raise BackboneError(msg)
 
         self._last_model_id = reply.model_id
         self._last_model_revision = reply.model_revision

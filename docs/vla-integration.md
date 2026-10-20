@@ -33,13 +33,25 @@ ROS `16UC1` convention, where 0 means no reading.
 | `pose`, `t`, `stage` | where and when | `model_id`, `model_revision` | what answered |
 | `seed` | the only randomness | `inference_s` | measured |
 | `samples` | chunks to draw | `info` | free-form, never read by the arbiter |
-| `views` | further cameras, `{name: PNG}` | | |
+| `views` | further cameras, `{name: PNG}` | `arm` | optional joint-target chunk, below |
+| `arm_state` | optional arm joint angles, `{joint: rad}` | | |
 
 `image` and `image_right` are the primary camera. A second stereo camera
 travels in `views` as `<camera>_left` and `<camera>_right` — on this robot,
 `world_left` / `world_right` when the arm camera is primary, or `arm_left` /
 `arm_right` when the world camera is. Key order is kept, and a policy that
 reads one view must accept the others.
+
+**The arm.** A manipulator policy reads the arm's measured joint angles in
+`arm_state` and answers with `arm`: an `ArmChunk` of `joints`, `positions_rad`
+(one row of joint targets per step) and `dt_s` between rows. Angles cross in
+radians in the SO-101 URDF's convention; converting a model's own units is the
+server's job, so the robot never needs to know which model answered. Both
+fields are optional and empty by default, so a navigation client and server
+never see them. An arm policy answers `linear = angular = 0`, and
+`RemoteBackbone` refuses any reply that carries an arm chunk: a navigation
+experiment pointed at an arm server must fail, not record a robot that never
+moved. SmolVLA and X-VLA serve this today: `docs/arm-policies.md`.
 
 ## The live pipeline: two stereo cameras and the operator's voice
 
@@ -80,11 +92,25 @@ velocity: a dead link means stop, never "keep doing the last thing". This path
 has no arbiter, so it is a demonstration and data-collection tool, not an
 experimental condition, and nothing it does reaches the decision log.
 
+The arm is off unless `arm:=true`. With it on, each request carries
+`/carma/arm/joint_states` and none is sent without fresh ones; each arm chunk
+is played out on `/carma/arm/<joint>/cmd_pos`, clamped to the joint limits and
+to 1.5 rad/s, and the loop is synchronous, as LeRobot drives the real arm: it
+observes only while the arm is still. The same three events that stop the base
+drop the chunk and hold each joint where it is measured to be.
+
 Checked end to end in Docker with the echo policy: no requests before an
 instruction; 2 per second after one, each carrying the arm pair as `image` /
 `image_right` and the world pair as `views`; none after "stop"; a rejected
 "stop" ignored; "go" resumed; zero velocity after "stop" and while the server
 was down. The same with both cameras coming from Gazebo (`arm:=true`).
+
+And with real models driving the arm in Gazebo (2026-10-20): the synthesised
+spoken clip "Pick up the red cube in front of the robot." went through the
+speech node into the instruction, and the arm moved under SmolVLA (shoulder
+lift swept 1.59 rad, 15 chunks at about 1.1 s round trip) and under X-VLA
+(1.15 rad, 24 chunks at about 0.55 s); "stop" held it within 0.005 rad, "go"
+resumed. Record in `training/results/RESULTS.md`.
 
 ```bash
 python scripts/policy_server.py --policy echo --host 0.0.0.0     # on the host
@@ -123,13 +149,17 @@ CI.
 2026) is soft-prompted per embodiment and already ships a server with the same
 shape: `model.run(processor, host, port=8000)` serving `POST /act`.
 
-**It cannot drive this robot yet, and the reason is the action space.** Every
+**It drives the arm, not the base.** Through LeRobot's port, X-VLA fine-tuned
+on SO-101 joint data now serves the arm (`--policy xvla`, `docs/arm-policies.md`).
+What follows is about the wheeled base.
+
+**It cannot drive the base yet, and the reason is the action space.** Every
 released checkpoint — WidowX, LIBERO, CALVIN, RoboTwin2, VLABench, SoftFold,
 Google-Robot — is a *manipulator* policy. The output is a chunk of 30 poses in
 EE6D: 3 position, 6 rotation, 1 gripper, 10 padding. This project commands a
 wheeled robot's linear and angular velocity. There is no honest mapping
-between an end-effector pose and a wheel velocity, so `XvlaPolicy` raises
-rather than inventing one.
+between an end-effector pose and a wheel velocity, and none is invented: an
+arm policy answers the base with zero, and `RemoteBackbone` refuses it.
 
 What it needs, in order:
 
@@ -146,12 +176,12 @@ What it needs, in order:
 Hardware is not the obstacle: 0.9B in bf16 fits the development machine's
 8 GB of VRAM comfortably.
 
-## SmolVLA, for the planned arm
+## SmolVLA and X-VLA, for the arm
 
-The pick-and-place arm to be mounted on the platform is a manipulator, so a
-manipulator VLA fits it directly, with none of the action-space mismatch
-above. The preferred model is SmolVLA (Apache-2.0, 450M parameters): unlike
-X-VLA it fine-tunes on the 8 GB development GPU with room to spare. Its
-fine-tuning environment, measured on that GPU, lives in `training/`, outside
-the `carma` package and its pins; see `training/README.md`. X-VLA (0.9B, LoRA
-available) remains the fallback.
+The SO-101 arm is a manipulator, so a manipulator VLA fits it directly, with
+none of the action-space mismatch above. Both SmolVLA (Apache-2.0, 450M) and
+X-VLA (Apache-2.0, 0.9B) serve it behind `policy_server.py`, and they are
+compared as a benchmark: `docs/arm-policies.md`. SmolVLA fine-tunes on the
+8 GB development GPU with room to spare; X-VLA there is unmeasured. The
+fine-tuning environment lives in `training/`, outside the `carma` package and
+its pins; see `training/README.md`.

@@ -30,3 +30,21 @@ carma_vla:
     # Off: actions are published on action_topic only. On: also /carma/cmd_vel.
     drive: false
     cmd_vel_topic: /carma/cmd_vel
+    # The arm. Its joint angles go with every request; an arm policy
+    # (policy_server.py --policy smolvla|xvla) answers with a chunk of joint
+    # targets. Off: chunks are published on action_topic only. On: also played
+    # out on /carma/arm/<joint>/cmd_pos.
+    arm: false
+    arm_joints: [shoulder_pan, shoulder_lift, elbow_flex, wrist_flex, wrist_roll, gripper]
+    joint_states_topic: /carma/arm/joint_states
+    arm_cmd_topic: /carma/arm/{joint}/cmd_pos
+    arm_rate_hz: 30.0
+    # Each tick moves a joint at most arm_max_speed_rad_s / arm_rate_hz; the
+    # servos' no-load speed is 4.7 rad/s.
+    arm_max_speed_rad_s: 1.5
+    # With arm on, no request is sent without joint states this fresh.
+    arm_max_state_age_s: 0.5
+    # Joint limits in radians, arm_joints order, from the SO-101 URDF
+    # (so101_new_calib.urdf), as in models/so101_follower.
+    arm_lower: [-1.91986, -1.74533, -1.69, -1.65806, -2.74385, -0.174533]
+    arm_upper: [1.91986, 1.74533, 1.69, 1.65806, 2.84121, 1.74533]

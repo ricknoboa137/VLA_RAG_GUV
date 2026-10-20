@@ -17,11 +17,19 @@ is required to seed from this field and to report, in
 :class:`ActResponse.model_id` and :attr:`ActResponse.model_revision`, exactly
 what answered -- those go into the run manifest, where a reader can see which
 weights produced a result.
+
+A manipulator policy also reads the arm's joint angles (``ActRequest.arm_state``)
+and answers with a chunk of joint targets (``ActResponse.arm``). Both are
+optional and default to empty, so a navigation client and server never see
+them. Angles cross in radians, in the arm's URDF convention; converting from
+a model's own units is the server's job, so the robot side never needs to know
+which model answered.
 """
 
 from __future__ import annotations
 
 import base64
+import math
 from dataclasses import asdict, dataclass, field
 from typing import Any, cast
 
@@ -107,6 +115,10 @@ class ActRequest:
             example ``world_left``. A policy that uses one view must still
             accept the others. On the wire this is a JSON object, whose key
             order is kept.
+        arm_state: Measured arm joint angles as ``(joint, radians)`` pairs, in
+            the arm's URDF convention, or empty for a robot without an arm. A
+            manipulator policy conditions on these; a navigation policy
+            ignores them. On the wire, a JSON object.
     """
 
     image: str
@@ -120,11 +132,19 @@ class ActRequest:
     image_right: str | None = None
     depth_mm: str | None = None
     views: tuple[tuple[str, str], ...] = ()
+    arm_state: tuple[tuple[str, float], ...] = ()
 
     def __post_init__(self) -> None:
         names = [name for name, _ in self.views]
         if len(set(names)) != len(names):
             msg = f"view names must be unique, got {names}"
+            raise ValueError(msg)
+        joints = [name for name, _ in self.arm_state]
+        if len(set(joints)) != len(joints):
+            msg = f"arm joint names must be unique, got {joints}"
+            raise ValueError(msg)
+        if not all(math.isfinite(angle) for _, angle in self.arm_state):
+            msg = f"arm joint angles must be finite, got {self.arm_state}"
             raise ValueError(msg)
 
     def to_json(self) -> dict[str, Any]:
@@ -133,6 +153,7 @@ class ActRequest:
         payload["context"] = list(self.context)
         payload["pose"] = list(self.pose)
         payload["views"] = dict(self.views)
+        payload["arm_state"] = dict(self.arm_state)
         return payload
 
     @staticmethod
@@ -159,6 +180,68 @@ class ActRequest:
             image_right=payload.get("image_right"),
             depth_mm=payload.get("depth_mm"),
             views=tuple((str(k), str(v)) for k, v in dict(payload.get("views", {})).items()),
+            arm_state=tuple(
+                (str(k), float(v)) for k, v in dict(payload.get("arm_state", {})).items()
+            ),
+        )
+
+
+@dataclass(frozen=True)
+class ArmChunk:
+    """A chunk of arm joint targets, as a manipulator policy returns it.
+
+    VLAs for arms predict a short trajectory rather than one command: SmolVLA
+    50 steps, X-VLA 30, at the recording rate of their training data. The
+    robot plays the chunk out at ``dt_s`` until the next one arrives.
+
+    Attributes:
+        joints: Joint names, in the order of each row of ``positions_rad``.
+        positions_rad: Joint position targets in radians, in the arm's URDF
+            convention, one row per step; row 0 is the first to execute.
+        dt_s: Seconds between consecutive rows.
+    """
+
+    joints: tuple[str, ...]
+    positions_rad: tuple[tuple[float, ...], ...]
+    dt_s: float
+
+    def __post_init__(self) -> None:
+        if not self.joints or len(set(self.joints)) != len(self.joints):
+            msg = f"joint names must be non-empty and unique, got {self.joints}"
+            raise ValueError(msg)
+        if not self.positions_rad:
+            msg = "an arm chunk needs at least one step"
+            raise ValueError(msg)
+        for i, row in enumerate(self.positions_rad):
+            if len(row) != len(self.joints):
+                msg = f"step {i} has {len(row)} values for {len(self.joints)} joints"
+                raise ValueError(msg)
+            if not all(math.isfinite(v) for v in row):
+                msg = f"step {i} has a non-finite joint target: {row}"
+                raise ValueError(msg)
+        if not (math.isfinite(self.dt_s) and self.dt_s > 0.0):
+            msg = f"dt_s must be positive, got {self.dt_s}"
+            raise ValueError(msg)
+
+    def to_json(self) -> dict[str, Any]:
+        """A plain dict ready for ``json.dumps``."""
+        return {
+            "joints": list(self.joints),
+            "positions_rad": [list(row) for row in self.positions_rad],
+            "dt_s": self.dt_s,
+        }
+
+    @staticmethod
+    def from_json(payload: dict[str, Any]) -> ArmChunk:
+        """Rebuild a chunk, rejecting one that is missing a field."""
+        missing = [key for key in ("joints", "positions_rad", "dt_s") if key not in payload]
+        if missing:
+            msg = f"arm chunk is missing {', '.join(missing)}"
+            raise ValueError(msg)
+        return ArmChunk(
+            joints=tuple(str(j) for j in payload["joints"]),
+            positions_rad=tuple(tuple(float(v) for v in row) for row in payload["positions_rad"]),
+            dt_s=float(payload["dt_s"]),
         )
 
 
@@ -182,6 +265,10 @@ class ActResponse:
         inference_s: Server-side inference time in seconds, measured.
         info: Anything else the server wants to record. Never read by the
             arbiter; it exists so a server can explain itself in the log.
+        arm: Joint targets for the arm, from a manipulator policy, or None.
+            Such a policy does not drive the base and answers ``linear`` and
+            ``angular`` of zero, so a client that only drives never moves.
+            Never read by the arbiter: the arm is outside the arbitration.
     """
 
     linear: float
@@ -193,6 +280,7 @@ class ActResponse:
     inference_s: float
     model_revision: str | None = None
     info: dict[str, Any] = field(default_factory=dict)
+    arm: ArmChunk | None = None
 
     def __post_init__(self) -> None:
         if not 0.0 <= self.uncertainty <= 1.0:
@@ -201,7 +289,9 @@ class ActResponse:
 
     def to_json(self) -> dict[str, Any]:
         """A plain dict ready for ``json.dumps``."""
-        return asdict(self)
+        payload = asdict(self)
+        payload["arm"] = None if self.arm is None else self.arm.to_json()
+        return payload
 
     @staticmethod
     def from_json(payload: dict[str, Any]) -> ActResponse:
@@ -229,4 +319,5 @@ class ActResponse:
             inference_s=float(payload["inference_s"]),
             model_revision=payload.get("model_revision"),
             info=dict(payload.get("info", {})),
+            arm=None if payload.get("arm") is None else ArmChunk.from_json(dict(payload["arm"])),
         )

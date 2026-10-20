@@ -5,11 +5,15 @@ Subscribes
     ``/carma/arm/stereo/{left,right}/image_raw``   camera on the SO-101 arm
     ``/carma/operator/utterance``                  speech results, JSON (carma_voice)
     ``/carma/odom``                                pose, when something publishes it
+    ``/carma/arm/joint_states``                    the arm's joint angles, sent with each request
 
 Publishes
     ``/carma/vla/action``   JSON per answered request: action, uncertainty, which
                             views were sent, what answered, measured latency
     ``/carma/cmd_vel``      only with ``drive:=true``
+    ``/carma/arm/<joint>/cmd_pos``  only with ``arm:=true``: an arm policy's chunk,
+                            played out at ``arm_rate_hz``, clamped to the joint
+                            limits and to ``arm_max_speed_rad_s``
 
 At ``rate_hz`` it takes the newest stereo pair from each camera, the instruction
 in force (see :mod:`carma_vla.pipeline` for how speech becomes one), and posts
@@ -22,7 +26,10 @@ This is a live demonstration path, not an experimental condition: no arbiter
 prices its actions, and nothing it does reaches the decision log. Driving is
 off by default. With ``drive:=true``, a spoken stop, a policy ``stop``, or a
 policy server that does not answer all command zero velocity: a broken link is
-treated as "stop", never as "carry on with the last action".
+treated as "stop", never as "carry on with the last action". Arm control is off
+by default too. With ``arm:=true`` the same three events drop the chunk in
+force and command the arm to hold where it is measured to be; a chunk that runs
+out also leaves the arm holding its last target.
 """
 
 from __future__ import annotations
@@ -39,18 +46,22 @@ from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
-from sensor_msgs.msg import Image
-from std_msgs.msg import String
+from sensor_msgs.msg import Image, JointState
+from std_msgs.msg import Float64, String
 
 from carma.backbone.remote import HttpTransport
 from carma.backbone.wire import ActRequest, ActResponse
 from carma.types import BackboneError
 from carma_vla.pipeline import (
+    ARM_JOINTS,
+    ChunkPlayer,
     InstructionState,
     StereoPair,
     action_record,
+    arm_state_from_joint_state,
     build_request,
     parse_utterance_message,
+    step_toward,
 )
 
 CAMERAS = ("world", "arm")
@@ -82,6 +93,15 @@ class VlaNode(Node):
         self.declare_parameter("action_topic", "/carma/vla/action")
         self.declare_parameter("drive", False)
         self.declare_parameter("cmd_vel_topic", "/carma/cmd_vel")
+        self.declare_parameter("arm", False)
+        self.declare_parameter("arm_joints", list(ARM_JOINTS))
+        self.declare_parameter("joint_states_topic", "/carma/arm/joint_states")
+        self.declare_parameter("arm_cmd_topic", "/carma/arm/{joint}/cmd_pos")
+        self.declare_parameter("arm_rate_hz", 30.0)
+        self.declare_parameter("arm_max_speed_rad_s", 1.5)
+        self.declare_parameter("arm_max_state_age_s", 0.5)
+        self.declare_parameter("arm_lower", [0.0])
+        self.declare_parameter("arm_upper", [0.0])
 
         p = self.get_parameter
         self._primary = str(p("primary").value)
@@ -98,6 +118,19 @@ class VlaNode(Node):
         self._drive = bool(p("drive").value)
         self._url = str(p("policy_url").value)
         self._transport = HttpTransport(self._url)
+        self._arm = bool(p("arm").value)
+        self._arm_joints = tuple(str(j) for j in p("arm_joints").value)
+        lower = [float(v) for v in p("arm_lower").value]
+        upper = [float(v) for v in p("arm_upper").value]
+        if self._arm and not (len(lower) == len(upper) == len(self._arm_joints)):
+            msg = "arm:=true needs arm_lower and arm_upper, one value per joint in arm_joints"
+            raise ValueError(msg)
+        self._arm_limits = {
+            joint: (lo, hi) for joint, lo, hi in zip(self._arm_joints, lower, upper, strict=False)
+        }
+        self._arm_rate_hz = float(p("arm_rate_hz").value)
+        self._arm_max_step = float(p("arm_max_speed_rad_s").value) / self._arm_rate_hz
+        self._arm_max_state_age_s = float(p("arm_max_state_age_s").value)
 
         self._state = InstructionState(instruction=str(p("instruction").value).strip())
         self._bridge = CvBridge()
@@ -110,6 +143,10 @@ class VlaNode(Node):
         self._answered = 0
         self._skipped = ""
         self._last_note = ""
+        self._arm_state: tuple[tuple[str, float], ...] = ()
+        self._arm_state_seen = 0.0
+        self._player = ChunkPlayer()
+        self._arm_command: dict[str, float] = {}
 
         slop = float(p("sync_slop_s").value)
         self._syncs = []
@@ -126,14 +163,31 @@ class VlaNode(Node):
 
         self.create_subscription(String, p("utterance_topic").value, self._on_utterance, 10)
         self.create_subscription(Odometry, p("odom_topic").value, self._on_odom, 10)
+        self.create_subscription(
+            JointState, p("joint_states_topic").value, self._on_joint_state, qos_profile_sensor_data
+        )
         self._actions = self.create_publisher(String, p("action_topic").value, 10)
-        self._cmd = self.create_publisher(Twist, p("cmd_vel_topic").value, 10) if self._drive else None
+        self._cmd = (
+            self.create_publisher(Twist, p("cmd_vel_topic").value, 10) if self._drive else None
+        )
+        self._arm_pubs = (
+            {
+                joint: self.create_publisher(
+                    Float64, str(p("arm_cmd_topic").value).format(joint=joint), 10
+                )
+                for joint in self._arm_joints
+            }
+            if self._arm
+            else {}
+        )
+        if self._arm:
+            self.create_timer(1.0 / self._arm_rate_hz, self._arm_tick)
 
         self.create_timer(1.0 / float(p("rate_hz").value), self._tick)
         self.create_timer(5.0, self._report)
         self.get_logger().info(
             f"cameras {self._cameras}, primary {self._primary}, policy {self._url}, "
-            f"drive {'ON' if self._drive else 'off'}; "
+            f"drive {'ON' if self._drive else 'off'}, arm {'ON' if self._arm else 'off'}; "
             f"instruction {self._state.instruction or '(none yet - say one)'}"
         )
 
@@ -160,6 +214,12 @@ class VlaNode(Node):
             if paused:
                 self._halt()
 
+    def _on_joint_state(self, msg: JointState) -> None:
+        state = arm_state_from_joint_state(list(msg.name), list(msg.position), self._arm_joints)
+        if state:
+            with self._lock:
+                self._arm_state, self._arm_state_seen = state, time.monotonic()
+
     def _on_odom(self, msg: Odometry) -> None:
         q = msg.pose.pose.orientation
         yaw = math.atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z))
@@ -176,10 +236,23 @@ class VlaNode(Node):
                 self._skipped = "paused" if self._state.paused else "no instruction yet"
                 return
             fresh = {
-                cam: pair for cam, (pair, seen) in self._frames.items() if now - seen <= self._max_age_s
+                cam: pair
+                for cam, (pair, seen) in self._frames.items()
+                if now - seen <= self._max_age_s
             }
             if self._primary not in fresh:
                 self._skipped = f"no fresh frame from the {self._primary} camera"
+                return
+            arm_fresh = now - self._arm_state_seen <= self._arm_max_state_age_s
+            arm_state = self._arm_state if arm_fresh else ()
+            if self._arm and not arm_state:
+                self._skipped = "no fresh arm joint states"
+                return
+            if self._arm and self._player.target(now) is not None:
+                # Synchronous, as LeRobot drives the real arm: observe only once
+                # the last chunk has played out, so the observation is still
+                # true when its answer arrives.
+                self._skipped = "arm still playing the last chunk"
                 return
             instruction = self._state.instruction
             self._busy = True
@@ -195,19 +268,26 @@ class VlaNode(Node):
             seed=self._seed + step,
             samples=self._samples,
             width=self._width,
+            arm_state=arm_state,
         )
         threading.Thread(target=self._ask, args=(request,), daemon=True).start()
 
     def _ask(self, request: ActRequest) -> None:
         started = time.monotonic()
+        response: ActResponse | None = None
         try:
             reply = self._transport.post(request.to_json(), self._timeout_s)
             response = ActResponse.from_json(reply)
         except (BackboneError, ValueError) as exc:
             self.get_logger().warning(f"policy did not answer: {exc}", throttle_duration_sec=5.0)
-            self._halt()
-            with self._lock:
-                self._busy = False
+        finally:
+            # Whatever went wrong, a request that produced no answer must not
+            # leave the loop waiting on it forever, nor the robot moving.
+            if response is None:
+                self._halt()
+                with self._lock:
+                    self._busy = False
+        if response is None:
             return
         record = action_record(response, request, self._primary, time.monotonic() - started)
         self._actions.publish(String(data=json.dumps(record, sort_keys=True)))
@@ -215,6 +295,15 @@ class VlaNode(Node):
             paused = self._state.paused
             self._answered += 1
             self._busy = False
+            if self._arm and response.arm is not None and not paused and not response.stop:
+                if self._player.target(time.monotonic()) is None:
+                    # Idle until now: move on from where the arm is, not from a
+                    # command it may since have been pushed away from.
+                    self._arm_command = dict(self._arm_state)
+                # From now: the arm has not moved since it was observed.
+                self._player.load(response.arm, time.monotonic())
+        if self._arm and (paused or response.stop):
+            self._hold_arm()
         if self._cmd is not None:
             if paused or response.stop:
                 self._halt()
@@ -227,6 +316,28 @@ class VlaNode(Node):
     def _halt(self) -> None:
         if self._cmd is not None:
             self._cmd.publish(Twist())
+        if self._arm:
+            self._hold_arm()
+
+    def _hold_arm(self) -> None:
+        """Drop the chunk and command each joint to where it is measured to be."""
+        with self._lock:
+            self._player.clear()
+            state = dict(self._arm_state)
+            self._arm_command = dict(state)
+        for joint, angle in state.items():
+            self._arm_pubs[joint].publish(Float64(data=angle))
+
+    def _arm_tick(self) -> None:
+        with self._lock:
+            target = self._player.target(time.monotonic())
+            if target is None:
+                return
+            previous = self._arm_command or dict(self._arm_state)
+            command = step_toward(target, previous, self._arm_max_step, self._arm_limits)
+            self._arm_command.update(command)
+        for joint, angle in command.items():
+            self._arm_pubs[joint].publish(Float64(data=angle))
 
     def _report(self) -> None:
         with self._lock:

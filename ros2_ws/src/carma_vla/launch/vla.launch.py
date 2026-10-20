@@ -1,7 +1,8 @@
 """Start the live VLA pipeline with its parameter file.
 
-    ros2 launch carma_vla vla.launch.py
-    ros2 launch carma_vla vla.launch.py primary:=world drive:=true
+ros2 launch carma_vla vla.launch.py
+ros2 launch carma_vla vla.launch.py primary:=world drive:=true
+ros2 launch carma_vla vla.launch.py arm:=true
 """
 
 from launch import LaunchDescription
@@ -18,6 +19,7 @@ def generate_launch_description() -> LaunchDescription:
         "policy_url": LaunchConfiguration("policy_url"),
         "primary": LaunchConfiguration("primary"),
         "drive": ParameterValue(LaunchConfiguration("drive"), value_type=bool),
+        "arm": ParameterValue(LaunchConfiguration("arm"), value_type=bool),
     }
     return LaunchDescription(
         [
@@ -32,6 +34,7 @@ def generate_launch_description() -> LaunchDescription:
             ),
             DeclareLaunchArgument("primary", default_value="arm"),
             DeclareLaunchArgument("drive", default_value="false"),
+            DeclareLaunchArgument("arm", default_value="false"),
             Node(
                 package="carma_vla",
                 executable="vla_node",

@@ -78,3 +78,42 @@ def test_localise_points_smolvla_at_the_local_vlm(fetch: ModuleType, tmp_path: P
         "tokenizer_name": "assets/smolvlm2-500m-video-instruct",
         "max_length": 48,
     }
+
+
+def test_localise_points_xvla_at_the_local_tokenizer(fetch: ModuleType, tmp_path: Path) -> None:
+    """X-VLA would otherwise fetch facebook/bart-large's tokenizer at load time."""
+    (tmp_path / "config.json").write_text(
+        json.dumps({"tokenizer_name": "facebook/bart-large", "chunk_size": 30})
+    )
+    (tmp_path / "policy_preprocessor.json").write_text(
+        json.dumps(
+            {
+                "steps": [
+                    {"registry_name": "rename_observations_processor", "config": {}},
+                    {
+                        "registry_name": "tokenizer_processor",
+                        "config": {"tokenizer_name": "facebook/bart-large", "max_length": 50},
+                    },
+                ]
+            }
+        )
+    )
+
+    fetch._localise_xvla(tmp_path, Path("assets") / fetch.TOKENIZER_ASSET)
+
+    config = json.loads((tmp_path / "config.json").read_text())
+    assert config == {"tokenizer_name": "assets/bart-large-tokenizer", "chunk_size": 30}
+    steps = json.loads((tmp_path / "policy_preprocessor.json").read_text())["steps"]
+    assert steps[0] == {"registry_name": "rename_observations_processor", "config": {}}
+    assert steps[1]["config"] == {"tokenizer_name": "assets/bart-large-tokenizer", "max_length": 50}
+
+
+def test_every_checkpoint_that_names_a_hub_dependency_is_localised(fetch: ModuleType) -> None:
+    """A SmolVLA or X-VLA checkpoint left unrewritten would reach the network at load."""
+    for name, asset in fetch.ASSETS.items():
+        if asset.repo_type != "model":
+            continue
+        if "smolvla" in name or "svla" in name:
+            assert asset.localise == "smolvla", name
+        if "xvla" in name:
+            assert asset.localise == "xvla", name

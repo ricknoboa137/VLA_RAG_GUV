@@ -1,4 +1,4 @@
-"""Serve a navigation policy over the act contract.
+"""Serve a policy over the act contract.
 
     python scripts/policy_server.py --policy echo
     carma run --config configs/experiment/remote_smoke.yaml
@@ -9,13 +9,20 @@ uncertainty, manifests -- can be exercised and tested before any large model
 is involved, and so a failure can be attributed to the plumbing or to the
 model rather than to both at once.
 
-``--policy xvla`` is the slot for X-VLA (Apache 2.0, 0.9B parameters,
-https://github.com/2toinf/X-VLA). It is deliberately unimplemented: every
-released X-VLA checkpoint is a **manipulator** policy whose action is a chunk
-of end-effector poses in EE6D, and this project drives a wheeled robot whose
-action is a forward velocity and a yaw rate. There is no honest mapping
-between the two, so the adapter refuses rather than inventing one. See
-docs/vla-integration.md.
+``--policy smolvla`` and ``--policy xvla`` serve a vision-language-action model
+for the SO-101 arm, through LeRobot, from a spec in ``configs/arm_policy/``
+(``scripts/arm_policy.py``). They answer with a chunk of joint targets in
+``ActResponse.arm`` and never drive the base. They need the ``carma-train``
+environment and a fetched checkpoint, and run with the Hub switched off:
+
+    $env:PYTHONPATH = "src"
+    & $env:USERPROFILE/anaconda3/envs/carma-train/python.exe scripts/policy_server.py `
+        --policy smolvla --self-check --host 0.0.0.0
+
+Neither drives the wheeled base. Every released X-VLA and SmolVLA checkpoint
+is a manipulator policy, and there is no honest mapping from arm poses to a
+forward velocity and a yaw rate (docs/vla-integration.md), so a navigation
+experiment pointed at one of these servers is refused by RemoteBackbone.
 
 Determinism: the seed arrives with each request and is the only source of
 randomness. The same request twice must give the same action, and
@@ -29,6 +36,7 @@ import json
 import sys
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
 from typing import Protocol
 
 import numpy as np
@@ -106,51 +114,24 @@ class EchoPolicy:
         )
 
 
-class XvlaPolicy:
-    """X-VLA, once a navigation checkpoint exists.
-
-    Unimplemented on purpose. X-VLA's released weights predict a chunk of
-    thirty end-effector poses -- three position, six rotation, one gripper --
-    for a manipulator. Turning that into a wheeled robot's forward velocity
-    and yaw rate is not an adapter but a modelling decision, and guessing one
-    would produce confident nonsense in every experiment that followed.
-
-    What this needs before it can be written, in order:
-
-    1. A navigation action space the checkpoint actually predicts, which means
-       fine-tuning from ``2toINF/X-VLA-Pt`` on navigation data, with a soft
-       prompt for this embodiment.
-    2. An uncertainty estimator. Flow matching yields no logits, so the
-       honest route is to draw ``request.samples`` chunks from different noise
-       and take their disagreement, then state that in
-       ``uncertainty_method`` and calibrate it, as section 8 requires.
-    3. A recorded revision, so a run manifest names the weights.
-    """
-
-    def __init__(self, checkpoint: str) -> None:
-        self._checkpoint = checkpoint
-
-    @property
-    def model_id(self) -> str:
-        """The checkpoint this would serve."""
-        return self._checkpoint
-
-    def act(self, request: ActRequest) -> ActResponse:
-        """Refuse, with the reason."""
-        msg = (
-            f"{self._checkpoint} predicts end-effector poses for a manipulator, and this "
-            "project commands a wheeled robot's linear and angular velocity. No released "
-            "X-VLA checkpoint predicts navigation actions. See docs/vla-integration.md."
-        )
-        raise NotImplementedError(msg)
+ARM_SPECS = {
+    "smolvla": Path("configs/arm_policy/svla_so101_red_cube.yaml"),
+    "xvla": Path("configs/arm_policy/xvla_so101_red_cube.yaml"),
+}
 
 
-def build_policy(kind: str, checkpoint: str) -> Policy:
-    """Construct the named policy."""
+def build_policy(kind: str, arm_spec: Path | None = None, device: str = "cuda") -> Policy:
+    """Construct the named policy; an arm policy reads its spec, by default the kind's own."""
     if kind == "echo":
         return EchoPolicy()
-    if kind == "xvla":
-        return XvlaPolicy(checkpoint)
+    if kind in ARM_SPECS:
+        from arm_policy import LeRobotArmPolicy, load_spec
+
+        spec = load_spec(arm_spec or ARM_SPECS[kind])
+        if spec.kind != kind:
+            msg = f"--policy {kind} given a {spec.kind} spec"
+            raise SystemExit(msg)
+        return LeRobotArmPolicy(spec, device=device)
     msg = f"unknown policy {kind!r}"
     raise SystemExit(msg)
 
@@ -166,29 +147,34 @@ def _self_check(policy: Policy) -> None:
 
     rng = np.random.default_rng(0)
     frame = rng.integers(0, 255, size=(64, 64, 3), dtype=np.uint8)
+    world = rng.integers(0, 255, size=(64, 64, 3), dtype=np.uint8)
+    joints = ("shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll", "gripper")
     request = ActRequest(
         image=encode_image(frame),
-        instruction="follow the row",
+        instruction="pick up the red cube",
         pose=(0.0, 0.0, 0.0),
         t=0.0,
         stage="VEGETATIVE",
         seed=12345,
+        views=(("world_left", encode_image(world)),),
+        arm_state=tuple((name, 0.0) for name in joints),
     )
     first = policy.act(request)
     second = policy.act(request)
-    if (first.linear, first.angular, first.stop, first.uncertainty) != (
-        second.linear,
-        second.angular,
-        second.stop,
-        second.uncertainty,
-    ):
+
+    def answer(r: ActResponse) -> tuple[object, ...]:
+        return (r.linear, r.angular, r.stop, r.uncertainty, r.arm)
+
+    if answer(first) != answer(second):
         msg = (
             "policy is not deterministic under a fixed seed: the same request gave "
             f"{first.linear:.6f}/{first.angular:.6f} then "
             f"{second.linear:.6f}/{second.angular:.6f}"
+            + ("" if first.arm == second.arm else ", and different arm chunks")
         )
         raise SystemExit(msg)
-    print("self-check: deterministic under a fixed seed")
+    detail = "" if first.arm is None else f", {len(first.arm.positions_rad)}-step arm chunk"
+    print(f"self-check: deterministic under a fixed seed{detail}")
 
 
 def make_handler(policy: Policy) -> type[BaseHTTPRequestHandler]:
@@ -217,6 +203,11 @@ def make_handler(policy: Policy) -> type[BaseHTTPRequestHandler]:
                 response = policy.act(request)
             except NotImplementedError as exc:
                 self._fail(501, str(exc))
+                return
+            except ValueError as exc:
+                # The request was well formed but this policy cannot answer it,
+                # e.g. an arm policy asked without the arm's joint angles.
+                self._fail(422, f"cannot answer: {exc}")
                 return
             except Exception as exc:
                 self._fail(500, f"{type(exc).__name__}: {exc}")
@@ -247,12 +238,14 @@ def make_handler(policy: Policy) -> type[BaseHTTPRequestHandler]:
 def main() -> int:
     """Serve until interrupted."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--policy", choices=("echo", "xvla"), default="echo")
+    parser.add_argument("--policy", choices=("echo", *ARM_SPECS), default="echo")
     parser.add_argument(
-        "--checkpoint",
-        default="2toINF/X-VLA-Pt",
-        help="checkpoint for --policy xvla",
+        "--arm-spec",
+        type=Path,
+        default=None,
+        help="spec for --policy smolvla/xvla (default: the kind's spec in configs/arm_policy/)",
     )
+    parser.add_argument("--device", default="cuda", help="torch device for an arm policy")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument(
@@ -262,7 +255,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    policy = build_policy(args.policy, args.checkpoint)
+    policy = build_policy(args.policy, args.arm_spec, args.device)
     if args.self_check:
         _self_check(policy)
 

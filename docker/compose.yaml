@@ -74,11 +74,11 @@ services:
 
   # Live VLA pipeline: both stereo cameras and operator speech into the policy
   # server (scripts/policy_server.py --host 0.0.0.0 on the host). Publishes
-  # /carma/vla/action; drives only with VLA_DRIVE=true. See docs/vla-integration.md.
+  # /carma/vla/action; drives only with VLA_DRIVE=true, moves the arm only with VLA_ARM=true. See docs/vla-integration.md.
   vla:
     <<: *ros
     profiles: [vla]
-    command: ros2 launch carma_vla vla.launch.py policy_url:=${POLICY_URL:-http://host.docker.internal:8000/act} primary:=${VLA_PRIMARY:-arm} drive:=${VLA_DRIVE:-false}
+    command: ros2 launch carma_vla vla.launch.py policy_url:=${POLICY_URL:-http://host.docker.internal:8000/act} primary:=${VLA_PRIMARY:-arm} drive:=${VLA_DRIVE:-false} arm:=${VLA_ARM:-false}
     restart: "no"
 
   bridge:

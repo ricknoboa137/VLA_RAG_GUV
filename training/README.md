@@ -5,11 +5,12 @@ This folder sets up and measures fine-tuning of
 parameters) with [LeRobot](https://github.com/huggingface/lerobot) on one
 8 GB laptop GPU, for the pick-and-place arm that will be mounted on the UGV.
 
-It is deliberately **arm-independent**. The arm (candidate: Hiwonder ArmPi
-Ultra, 5 joints + gripper) is not bought yet and has no sim model, so nothing
-here assumes its joint count, cameras or kinematics. SmolVLA pads state and
-action to 32 dimensions internally; any arm with at most 32 of each fits
-without code changes, and the dimensions come from the dataset.
+It is written **arm-independent**: nothing here assumes a joint count,
+cameras or kinematics. SmolVLA pads state and action to 32 dimensions
+internally; any arm with at most 32 of each fits without code changes, and the
+dimensions come from the dataset. The arm since chosen is the SO-101
+(`docs/arm.md`), which LeRobot supports directly, and the same environment now
+serves SmolVLA and X-VLA checkpoints for it (`docs/arm-policies.md`).
 
 Training is **not part of the `carma` package**. torch and LeRobot live only
 in a separate conda environment, `carma-train`, so the library's pinned
@@ -246,13 +247,14 @@ batch 64 itself cannot be reproduced here (see section 7).
 5. **bf16 weights without an fp32 master copy.** Upstream SmolVLA trains its
    bf16 parameters directly. Late in the cosine schedule (learning rate down to
    2.5e-6) small updates may round away. Effect not measured.
-6. **Arm-specific work, deliberately not started.** A LeRobot robot class for
-   the chosen arm's bus servos, a recorded dataset of its own episodes, and the
-   mapping of its cameras (e.g. the depth camera's RGB stream) onto the policy's
-   camera slots. State and action sizes up to 32 need no code change.
+6. **Arm-specific work.** The SO-101 needs no robot class (LeRobot has
+   `so101_follower`), and the mapping of the robot's cameras onto the policy's
+   slots is in `configs/arm_policy/`. Still open: a recorded dataset of this
+   robot's own episodes.
 7. **Latency on the robot.** Measured here only; the on-robot computer is not
    chosen. `torch.compile` (`--policy.compile_model`) needs Triton, which this
    Windows environment does not have, so it was not tried.
 8. **Other platforms.** The lock files are Windows x64. Linux or a Jetson
    needs its own lock resolved from `requirements.in`.
-9. **X-VLA fallback** (0.9B, LoRA) is not set up or measured.
+9. **X-VLA fine-tuning** (0.9B, LoRA) is not set up or measured. X-VLA
+   inference is: `docs/arm-policies.md`.

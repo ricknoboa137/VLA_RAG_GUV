@@ -16,6 +16,7 @@ from carma.backbone.remote import HttpTransport, RemoteBackbone
 from carma.backbone.wire import (
     ActRequest,
     ActResponse,
+    ArmChunk,
     decode_image,
     decode_png16,
     encode_image,
@@ -266,6 +267,98 @@ def test_duplicate_view_names_are_rejected() -> None:
             seed=0,
             views=(("arm_left", "a"), ("arm_left", "b")),
         )
+
+
+# ------------------------------------------------------- the arm, on the wire
+
+_ARM_JOINTS = ("shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll", "gripper")
+
+
+def _bare_request(**overrides: Any) -> ActRequest:
+    base: dict[str, Any] = {
+        "image": "x",
+        "instruction": "pick up the red cube",
+        "pose": (0.0, 0.0, 0.0),
+        "t": 0.0,
+        "stage": "VEGETATIVE",
+        "seed": 0,
+    }
+    base.update(overrides)
+    return ActRequest(**base)
+
+
+def test_arm_state_round_trips_in_joint_order() -> None:
+    state = tuple((name, 0.1 * i) for i, name in enumerate(_ARM_JOINTS))
+    request = _bare_request(arm_state=state)
+    payload = request.to_json()
+    assert list(payload["arm_state"]) == list(_ARM_JOINTS)
+    assert ActRequest.from_json(payload) == request
+
+
+def test_a_request_without_an_arm_has_no_arm_state() -> None:
+    payload = {"image": "x", "instruction": "y", "pose": [0, 0, 0], "t": 0, "stage": "V", "seed": 1}
+    assert ActRequest.from_json(payload).arm_state == ()
+
+
+def test_arm_state_rejects_duplicates_and_non_finite_angles() -> None:
+    with pytest.raises(ValueError, match="unique"):
+        _bare_request(arm_state=(("gripper", 0.0), ("gripper", 0.1)))
+    with pytest.raises(ValueError, match="finite"):
+        _bare_request(arm_state=(("gripper", float("nan")),))
+
+
+def test_arm_chunk_round_trips_through_the_response() -> None:
+    chunk = ArmChunk(
+        joints=_ARM_JOINTS,
+        positions_rad=((0.0, -0.5, 0.5, 0.2, 0.0, 0.3), (0.01, -0.49, 0.5, 0.2, 0.0, 0.35)),
+        dt_s=1.0 / 30.0,
+    )
+    response = ActResponse.from_json(_ok_reply(linear=0.0, angular=0.0, arm=chunk.to_json()))
+    assert response.arm == chunk
+    assert ActResponse.from_json(response.to_json()) == response
+
+
+def test_a_navigation_reply_carries_no_arm() -> None:
+    response = ActResponse.from_json(_ok_reply())
+    assert response.arm is None
+    assert response.to_json()["arm"] is None
+
+
+@pytest.mark.parametrize(
+    ("joints", "rows", "dt_s", "match"),
+    [
+        ((), ((0.0,),), 0.1, "non-empty"),
+        (("a", "a"), ((0.0, 0.0),), 0.1, "unique"),
+        (("a", "b"), (), 0.1, "at least one step"),
+        (("a", "b"), ((0.0,),), 0.1, "1 values for 2 joints"),
+        (("a",), ((float("inf"),),), 0.1, "non-finite"),
+        (("a",), ((0.0,),), 0.0, "positive"),
+    ],
+)
+def test_arm_chunk_rejects_a_malformed_trajectory(
+    joints: tuple[str, ...], rows: tuple[tuple[float, ...], ...], dt_s: float, match: str
+) -> None:
+    with pytest.raises(ValueError, match=match):
+        ArmChunk(joints=joints, positions_rad=rows, dt_s=dt_s)
+
+
+def test_arm_chunk_rejects_a_missing_field() -> None:
+    with pytest.raises(ValueError, match="dt_s"):
+        ArmChunk.from_json({"joints": ["a"], "positions_rad": [[0.0]]})
+
+
+def test_the_navigation_backbone_refuses_an_arm_policy() -> None:
+    """An arm server's zero velocity must not pass for a navigation action."""
+    arm = ArmChunk(joints=("gripper",), positions_rad=((0.2,),), dt_s=0.1).to_json()
+    backbone = RemoteBackbone(transport=RecordingTransport(_ok_reply(arm=arm)))
+    with pytest.raises(BackboneError, match="arm policy"):
+        backbone.act(_observation(), (), rng=np.random.default_rng(0))
+
+
+def test_the_navigation_backbone_sends_no_arm_state() -> None:
+    transport = RecordingTransport()
+    RemoteBackbone(transport=transport).act(_observation(), (), rng=np.random.default_rng(0))
+    assert transport.requests[0]["arm_state"] == {}
 
 
 @pytest.mark.parametrize("failure", [TimeoutError("timed out"), ConnectionResetError("reset")])

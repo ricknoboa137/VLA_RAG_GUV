@@ -99,6 +99,17 @@ lerobot-calibrate --robot.type=so101_follower --robot.port=<port> --robot.id=car
 LeRobot is not a dependency of the `carma` library, and nothing in `src/`
 imports it.
 
+## Driven by a VLA
+
+`scripts/policy_server.py --policy smolvla` or `--policy xvla` serves a
+vision-language-action model that answers with joint-target chunks, and
+`carma_vla` with `arm:=true` plays them out on `/carma/arm/<joint>/cmd_pos`,
+from the arm camera, the world camera and the operator's spoken instruction.
+Checked in Gazebo with both models. The arm's angles cross the wire in this
+URDF's radians; each model's own units are converted by its spec in
+`configs/arm_policy/`. Details, and how the two models are compared:
+`docs/arm-policies.md`.
+
 ## What the arm is not, yet
 
 It is not part of the arbitration. No `Protocol` in `carma.types` describes a
