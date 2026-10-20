@@ -152,6 +152,23 @@ other argument is LeRobot's. `--rename_map` maps the dataset's two cameras
 onto the policy's camera slots. The batch sweep is
 `training/sweep_batch.py --variant <name> --batches ...`.
 
+**Use `measure_train.py`, not bare `lerobot-train`, on Windows.** After every
+save LeRobot points `checkpoints/last` at the newest checkpoint with a
+symbolic link, and Windows refuses that without privilege (WinError 1314),
+which stops the run at its first checkpoint. On this machine Developer Mode
+is on only by organisation policy, which does not grant the right.
+`windows_compat.py`, installed by `measure_train.py`, falls back to a
+directory junction, which needs no privilege. Resume works through it
+unchanged:
+
+```powershell
+& $py training/measure_train.py --resume=true `
+  --config_path=runs/training/<run>/checkpoints/last/pretrained_model/train_config.json --steps=<new total>
+```
+
+A junction stores an absolute path, so `last` breaks if the run folder is
+moved; the numbered checkpoints are unaffected.
+
 **Windows trap, worth knowing before reading any memory number.** When a
 batch needs more than the card has, the Windows driver does not raise
 out-of-memory: it silently spills into shared system memory and the run
@@ -194,8 +211,10 @@ saturated, and a bigger batch only means fewer, slower steps.
 
 The 300-step run (expert-only, batch 24, seed 0): 639 s, 0.49 steps/s,
 11.7 samples/s, 6.49 GiB peak, loss 0.571 at step 25 down to 0.207 at step
-300. The checkpoint was written and reloads; the process then exited 1 on the
-Windows symlink issue in section 7.
+300. The checkpoint was written and reloads. That run predates
+`windows_compat.py` and exited 1 on the symlink after saving; with it, a
+train-save-save-resume check (2 + 2 + 2 steps) exits 0 and resumes from
+`last` at the right step and sample.
 
 ## 6. Is 8 GB enough?
 
@@ -211,11 +230,10 @@ batch 64 itself cannot be reproduced here (see section 7).
 
 ## 7. What is still open
 
-1. **Checkpoint symlink on Windows.** LeRobot links `checkpoints/last` after
-   each save, which needs Windows Developer Mode (Settings > System > For
-   developers) or an elevated shell. Without it the run exits 1 right after
-   the first checkpoint is written. The checkpoint is complete; resuming needs
-   its explicit path instead of `last`.
+1. **Checkpoint symlink on Windows: resolved 2026-10-20** by the junction
+   fallback in `windows_compat.py` (section 5). Bare `lerobot-train` still
+   stops at its first checkpoint here; LeRobot's other trainer
+   (`lerobot.rl.learner`) is not patched.
 2. **Batch 24 instead of 64.** No gradient accumulation in LeRobot 0.6.1, so
    the upstream recipe's batch cannot be matched here. Whether the learning
    rate or step count should change for batch 24 is untested: the smoke run

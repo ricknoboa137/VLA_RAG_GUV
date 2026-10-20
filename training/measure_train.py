@@ -21,6 +21,7 @@ import time
 from pathlib import Path
 
 import torch
+import windows_compat
 from lerobot.scripts import lerobot_train
 
 
@@ -46,6 +47,7 @@ def main() -> int:
     if out is None and output_dir is not None:
         out = output_dir.parent / f"{output_dir.name}.measure.json"
 
+    windows_compat.install()
     torch.cuda.reset_peak_memory_stats()
     t0 = time.perf_counter()
     error: str | None = None
@@ -54,9 +56,8 @@ def main() -> int:
     except torch.OutOfMemoryError as exc:
         error = f"OutOfMemoryError: {str(exc).splitlines()[0]}"
     except OSError as exc:
-        # On Windows without Developer Mode, LeRobot's checkpoints/last symlink
-        # fails (WinError 1314) after the checkpoint itself has been written.
-        # Record it rather than lose the measurement of a finished run.
+        # A filesystem error after training (the checkpoints/last link was one,
+        # before windows_compat) must not lose the measurement of a finished run.
         error = f"{type(exc).__name__}: {exc}"
     result = {
         "argv": sys.argv[1:],

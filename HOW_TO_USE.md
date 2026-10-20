@@ -580,6 +580,7 @@ untouched.
 | `requirements-win64.lock`, `conda-win64.lock` | Every pip and conda package of the environment, exact versions | Two installs give identical environments |
 | `smoke_inference.py` | Loads SmolVLA on the GPU and times action-chunk prediction | Measures latency and memory for any state/action size |
 | `measure_train.py` | Runs `lerobot-train` and records peak GPU memory | LeRobot does not report peak memory itself |
+| `windows_compat.py` | Makes LeRobot's `checkpoints/last` link a directory junction when Windows refuses the symlink | Without it a run on Windows stops at its first checkpoint |
 | `sweep_batch.py` | Short training runs over batch sizes and precision settings | Finds the largest batch that fits on the card |
 | `results/` | Measured numbers as JSON, and `RESULTS.md`, the dated log of every run | The record that reports and papers cite |
 
