@@ -1,0 +1,17 @@
+{
+  "run": "smoke300",
+  "variant": "expert",
+  "batch": 24,
+  "steps": 300,
+  "seed": 0,
+  "completed_steps": 300,
+  "loss_at_step_25": 0.571,
+  "loss_at_step_300": 0.207,
+  "steps_per_s": 0.486,
+  "samples_per_s": 11.7,
+  "peak_vram_allocated_gib": 6.49,
+  "peak_vram_source": "lerobot mem_gb = torch.cuda.max_memory_allocated()",
+  "train_wall_s": 639,
+  "checkpoint": "written at step 300 (pretrained_model + training_state), 1.2 GB + 0.4 GB",
+  "exit": "OSError WinError 1314 creating checkpoints/last symlink after the checkpoint was saved (Windows Developer Mode off)"
+}
