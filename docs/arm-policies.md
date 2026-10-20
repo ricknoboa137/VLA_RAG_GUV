@@ -105,7 +105,7 @@ chunk and the spread's uncertainty.
 **The uncertainty is not calibrated, and its method key says so:**
 `chunk_spread/uncalibrated`, `u = s / (s + 0.02)`. It orders observations, but
 it is not a probability, and it is not comparable between the two models.
-X-VLA's samples spread about 25 times less than SmolVLA's for the same request
+X-VLA's samples spread almost 30 times less than SmolVLA's for the same request
 (0.0006 against 0.017 of the joint range on the self-check frame), so the same
 map gives X-VLA a far lower number without it being any more right.
 Calibrating needs held-out episodes, which these checkpoints do not have. The

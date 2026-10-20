@@ -14,6 +14,62 @@ allocator cap (see `training/README.md`, the Windows spill trap).
 
 ---
 
+## 2026-10-20: SmolVLA and X-VLA serving the SO-101 arm (plumbing smoke)
+
+Folder: [`2026-10-20_arm-policies-smoke/`](2026-10-20_arm-policies-smoke/)
+
+**Not a benchmark result.** Both checkpoints are community fine-tunes trained
+on every episode scored here, so the open-loop numbers measure how well each
+reproduces its own training data, through this project's serving path. They
+show the comparison runs end to end; the fair benchmark fine-tunes both bases
+on a held-out split (`docs/arm-policies.md`, "What is still open").
+
+**Setup.** `whosricky/svla-so101-pick-red-cube-2cam` @`5302eec` (SmolVLA, bf16)
+and `whosricky/xvla-so101-pick-red-cube-2cam` @`7a007f6` (X-VLA, bf16), both
+fine-tuned from their model's base on `whosricky/so101_pick_mixed_cubes_2cams`
+@`f77f316`. Specs `configs/arm_policy/*.yaml`. Each served by
+`scripts/policy_server.py`, both at once, queried over HTTP by
+`scripts/benchmark_arm_policies.py`. LeRobot 0.6.1, torch 2.10.0+cu128, same
+GPU and driver as below. Code: commit `df60cc4`, clean tree.
+
+**Conditions.** The GPU was shared with another CUDA process and SOLIDWORKS
+throughout, so latencies are not idle-GPU numbers. The first requests to a
+cold server took 15–99 s while its allocations settled near the 8 GB limit
+(the Windows spill trap); everything below is after warm-up.
+
+### Open loop: episodes 0, 45, 90, 135, 181, every 60th frame, 25 steps, 4 samples, seed 0
+
+31 frames, identical requests to both models.
+
+| Model | Mean joint error | First step | Uncertainty–error rank corr. | Inference p50 / p95 |
+|---|---|---|---|---|
+| SmolVLA | 0.049 rad | 0.023 rad | 0.53 | 0.64 / 0.81 s |
+| X-VLA | 0.082 rad | 0.049 rad | 0.35 | 0.52 / 0.53 s |
+
+Per joint (rad), SmolVLA / X-VLA: shoulder pan 0.034 / 0.048, shoulder lift
+0.084 / 0.168, elbow 0.079 / 0.153, wrist flex 0.027 / 0.050, wrist roll
+0.026 / 0.021, gripper 0.042 / 0.050. Uncertainty is
+`chunk_spread/uncalibrated` for both; its values are not comparable between
+the models (X-VLA's samples spread almost 30 times less).
+
+### Closed loop in Gazebo: the arm moved by a spoken instruction
+
+`gazebo_runs.json`. `row_crop.launch.py arm:=true`, `carma_vla` with
+`arm:=true`, the clip "Pick up the red cube in front of the robot." synthesised
+offline and sent through the speech node. With each model the arm moved
+(shoulder lift range SmolVLA 1.59 rad, X-VLA 1.08 rad), "stop" held every joint
+within 0.005 rad, and "go" resumed (checked with SmolVLA). Round trip from the
+container: SmolVLA about 1.1 s, X-VLA about 0.55 s per 4-sample chunk. The
+world has no red cube and the arm is primitive geometry, so this shows the
+path works, not that either model can do the task.
+
+Found on the way: chunks timed from the observation all expired before they
+arrived (1.8 s round trip against a 0.83 s chunk), so the loop was made
+synchronous; and a socket timeout escaped `HttpTransport` and froze the loop,
+fixed in `2484fb6`.
+
+---
+
 ## 2026-10-19: SmolVLA environment smoke tests
 
 Folder: [`2026-10-19_smolvla-smoke/`](2026-10-19_smolvla-smoke/)
