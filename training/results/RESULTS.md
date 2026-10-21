@@ -54,7 +54,7 @@ the models (X-VLA's samples spread almost 30 times less).
 
 ### Closed loop in Gazebo: the arm moved by a spoken instruction
 
-`gazebo_runs.json`. `row_crop.launch.py arm:=true`, `carma_vla` with
+`gazebo_runs.json`, with the joint traces (`gazebo_*_joints.csv`, ~10 Hz) and every action record (`gazebo_*_actions.jsonl`); `gazebo_runs.json` says which run each file is from. `row_crop.launch.py arm:=true`, `carma_vla` with
 `arm:=true`, the clip "Pick up the red cube in front of the robot." synthesised
 offline and sent through the speech node. With each model the arm moved
 (shoulder lift range SmolVLA 1.59 rad, X-VLA 1.08 rad), "stop" held every joint
