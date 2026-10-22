@@ -14,6 +14,118 @@ allocator cap (see `training/README.md`, the Windows spill trap).
 
 ---
 
+## 2026-10-22: SmolVLA against X-VLA on held-out SO-101 episodes (fair benchmark)
+
+Folder: [`2026-10-22_arm-benchmark/`](2026-10-22_arm-benchmark/)
+
+**What this is.** Both bases fine-tuned here with the same recipe on the same
+training episodes, then scored open loop on episodes neither model saw. Open
+loop measures imitation of the recording, **not task success**: no cube was
+picked up, by a real arm or a simulated one, in this measurement.
+
+**Split** (`split.json`, the same file as `training/splits/so101_red_cube_seed0.json`):
+`whosricky/so101_pick_mixed_cubes_2cams` @`f77f316`, 182 episodes,
+`np.random.default_rng(0).permutation(182)`: 146 train, 18 calibration (used
+only for the uncertainty fit), 18 test (used only for scoring). Whole
+episodes are held out. Normalisation statistics for state and action come
+from the 146 training episodes only (`measure_train.py --split`); the
+dataset's own `stats.json` covers all 182. The dataset's metadata carries 35
+stale duplicate rows for episodes 132-166, which are skipped.
+
+**Training** (`*_train_config.json`, `*_train.measure.json`, `*_train.curve.csv`):
+
+| | SmolVLA | X-VLA |
+|---|---|---|
+| Base | `lerobot/smolvla_base` @`5e8d12a` | `lerobot/xvla-base` @`cdb7964`, `action_mode=auto` |
+| Trained | action expert (VLM frozen), 99.9M | policy transformer + soft prompts (Florence-2 encoders frozen), 311.0M |
+| Steps, batch, seed | 20 000, 8, 0 | 20 000, 8, 0 |
+| Cameras | top -> camera1, gripper -> camera2 | top -> image, gripper -> image2, 1 empty slot |
+| Optimiser, schedule | the policy's LeRobot preset: lr 1e-4, cosine with 1 000 warm-up steps, auto-scaled to 20 000 | same |
+| Peak VRAM | 3.22 (3.27) GiB | 5.70 (5.76) GiB |
+| Final loss (step 20 000) | 0.080 | 0.017 (the two losses are different quantities; not comparable) |
+| Wall time | 16.4 h | 21.4 h |
+
+Why frozen: a full X-VLA fine-tune (879M trainable, bf16) runs out of memory
+at batch 8 under a 6.8 GiB cap, and frozen-encoder X-VLA runs out at batch 16.
+So both run at batch 8 (also the community pair's recipe), and each trains its
+action model with its VLM frozen. Wall times are **contended**: the GPU was
+shared with another CUDA process throughout, and both runs were about 1.5-2x
+slower than their uncontended 25-step probes (0.69 and 0.58 s/step).
+
+**Uncertainty** (`uncertainty_fit.json`, `calibration_*`): the logistic map
+`u = sigmoid(a ln(spread) + b)`, fitted per model by
+`scripts/fit_arm_uncertainty.py` on the 18 calibration episodes (stride 15,
+413 frames each). It predicts the event "chunk mean joint error > 0.0678 rad";
+that tolerance is the pooled median calibration error, the same for both
+models. SmolVLA a = 2.967, b = 14.338; X-VLA a = 0.807, b = 5.874.
+
+**Result, 18 test episodes** (`test_summary.json`, `test_predictions.jsonl`;
+stride 15, 426 frames per model, 4 samples, horizon 25, served in bf16):
+
+| | SmolVLA | X-VLA |
+|---|---|---|
+| Mean joint error over the chunk | **0.0805 rad** | 0.0941 rad |
+| First-step error | **0.0327 rad** | 0.0565 rad |
+| Shoulder lift / elbow flex | 0.157 / 0.140 | 0.189 / 0.165 |
+| Shoulder pan / wrist flex / wrist roll / gripper | 0.058 / 0.033 / 0.037 / 0.058 | 0.057 / 0.046 / 0.039 / 0.070 |
+| Uncertainty-error rank correlation | 0.553 | 0.439 |
+| Share above tolerance (test) / mean predicted u | 0.493 / 0.466 | 0.568 / 0.530 |
+| Brier score / constant-rate baseline | 0.199 / 0.250 | 0.224 / 0.245 |
+| Inference p50 / p95 (contended) | 0.92 / 1.36 s | 0.63 / 1.01 s |
+
+Per-episode paired difference (SmolVLA minus X-VLA, mean of the episode
+means): -0.0129 rad, 95% bootstrap interval over episodes [-0.0201, -0.0057]
+(10 000 resamples of the 18 episodes with replacement,
+`np.random.default_rng(0)`, from `test_predictions.jsonl`). X-VLA was better
+on 5 of the 18 episodes.
+
+**What it shows.** Under one recipe that fits an 8 GB card, fine-tuned
+SmolVLA imitates held-out demonstrations more closely than fine-tuned X-VLA:
+on every joint except shoulder pan (0.058 against 0.057, effectively level),
+with a larger gap on the first step. Both uncertainty maps carry
+information. On test data they were not fitted on, both score below the
+constant-rate Brier baseline and their mean predictions sit close to the
+observed rates. SmolVLA's map is a little better.
+
+**What it does not show.** Task success, or closed-loop or real-arm
+behaviour. A general ranking of the two architectures either: X-VLA trained
+with its VLM frozen and at batch 8 because of the card, on one seed, one
+dataset and one task. Absolute latency: the GPU was shared.
+
+**Commands** (repository root, `carma-train`, `PYTHONPATH=src`, offline
+environment variables from `training/README.md`):
+
+```
+python training/split_episodes.py --dataset assets/so101_red_cube --seed 0 --out training/splits/so101_red_cube_seed0.json
+COMMON="--dataset.repo_id=local/so101_red_cube --dataset.root=assets/so101_red_cube --batch_size=8 --steps=20000 --log_freq=100 --save_checkpoint=true --save_freq=5000 --num_workers=2 --seed=0 --wandb.enable=false --vram-limit-gib=6.8 --split=training/splits/so101_red_cube_seed0.json"
+python training/measure_train.py --policy.path=assets/smolvla_base --policy.push_to_hub=false --policy.train_expert_only=true '--rename_map={"observation.images.top": "observation.images.camera1", "observation.images.gripper": "observation.images.camera2"}' $COMMON --output_dir=runs/training/arm_benchmark/smolvla
+python training/measure_train.py --policy.path=assets/xvla_base --policy.push_to_hub=false --policy.action_mode=auto --policy.dtype=bfloat16 --policy.empty_cameras=1 --policy.freeze_vision_encoder=true --policy.freeze_language_encoder=true '--rename_map={"observation.images.top": "observation.images.image", "observation.images.gripper": "observation.images.image2"}' $COMMON --output_dir=runs/training/arm_benchmark/xvla
+# copy checkpoints/020000/pretrained_model to assets/smolvla_so101_red_cube_seed0 and assets/xvla_so101_red_cube_seed0
+python scripts/policy_server.py --policy smolvla --arm-spec configs/arm_policy/smolvla_so101_red_cube_seed0.yaml --self-check --port 8010
+python scripts/policy_server.py --policy xvla --arm-spec configs/arm_policy/xvla_so101_red_cube_seed0.yaml --self-check --port 8011
+python scripts/benchmark_arm_policies.py --dataset assets/so101_red_cube --episodes <calibration episodes> --stride 15 --server smolvla=http://127.0.0.1:8010/act --server xvla=http://127.0.0.1:8011/act --units-spec configs/arm_policy/smolvla_so101_red_cube_seed0.yaml --out runs/bench/calibration
+python scripts/fit_arm_uncertainty.py --predictions runs/bench/calibration/predictions.jsonl --out runs/bench/uncertainty_fit.json
+# write a, b and tolerance_rad into both specs, restart both servers, then:
+python scripts/benchmark_arm_policies.py --dataset assets/so101_red_cube --episodes <test episodes> --stride 15 --timeout-s 300 --server smolvla=http://127.0.0.1:8010/act --server xvla=http://127.0.0.1:8011/act --units-spec configs/arm_policy/smolvla_so101_red_cube_seed0.yaml --out runs/bench/test
+python training/record_results.py --label arm-benchmark --date 2026-10-22 --json <the JSON files> --log <both training logs>
+```
+
+**Notes.**
+- The calibration pass ran with the uncalibrated map, since the fit uses only
+  the spread. The test pass ran with the fitted maps, so the uncertainties in
+  `test_predictions.jsonl` are the ones the servers sent.
+- The first test attempt stopped on a 60 s request timeout (a stall on the
+  shared GPU) and was rerun in full with `--timeout-s 300`. The seeds are
+  fixed, so the rerun sent the same requests.
+- `dirty: true` in the summaries comes from this entry's specs and docs, not
+  yet committed when they ran. The code that trained and scored is at
+  `d549069` plus the commit that adds this entry.
+- The plumbing baseline with the community checkpoints is the 2026-10-20 entry
+  below. Those checkpoints were trained on these episodes, so their numbers
+  are not comparable.
+
+---
+
 ## 2026-10-20: SmolVLA and X-VLA serving the SO-101 arm (plumbing smoke)
 
 Folder: [`2026-10-20_arm-policies-smoke/`](2026-10-20_arm-policies-smoke/)

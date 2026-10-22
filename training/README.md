@@ -256,5 +256,10 @@ batch 64 itself cannot be reproduced here (see section 7).
    Windows environment does not have, so it was not tried.
 8. **Other platforms.** The lock files are Windows x64. Linux or a Jetson
    needs its own lock resolved from `requirements.in`.
-9. **X-VLA fine-tuning** (0.9B, LoRA) is not set up or measured. X-VLA
-   inference is: `docs/arm-policies.md`.
+9. **X-VLA fine-tuning: measured 2026-10-22.** A full fine-tune (879M
+   trainable, bf16) is out of memory at batch 8 under a 6.8 GiB cap. With the
+   Florence-2 encoders frozen (`--policy.freeze_vision_encoder=true
+   --policy.freeze_language_encoder=true`, 311M trainable) it fits at batch 8
+   (5.70 GiB, 0.58 s/step uncontended) but not at batch 16. LoRA would need
+   `peft`, which is not installed. `measure_train.py --split` trains on a
+   held-out split; see `results/RESULTS.md`, 2026-10-22.
