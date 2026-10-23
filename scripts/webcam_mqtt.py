@@ -79,7 +79,10 @@ def main() -> int:
     parser.add_argument(
         "--topic",
         default=None,
-        help="frame topic; defaults to <prefix>/<source>/frame. Use MqttVidFeed for the Quest client",
+        help=(
+            "frame topic; defaults to <prefix>/<source>/frame. "
+            "Use MqttVidFeed for the Quest client"
+        ),
     )
     parser.add_argument(
         "--encoding",
@@ -109,7 +112,9 @@ def main() -> int:
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="carma-webcam")
     client.connect(args.host, args.port, keepalive=30)
     client.loop_start()
-    client.publish(f"{args.prefix}/{args.source}/meta", json.dumps({"layout": layout}), qos=1, retain=True)
+    client.publish(
+        f"{args.prefix}/{args.source}/meta", json.dumps({"layout": layout}), qos=1, retain=True
+    )
 
     period = 1.0 / args.fps
     sent = 0
