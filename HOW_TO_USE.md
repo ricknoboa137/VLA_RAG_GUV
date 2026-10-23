@@ -730,6 +730,13 @@ untouched.
 | `carma_bridge/README.md` | The ROS topic contract between robot and library | Both the simulator and the real robot must publish these topics |
 | `*/package.xml`, `setup.py`, `setup.cfg`, `CMakeLists.txt`, `resource/*`, `__init__.py` | ROS package metadata and build files | Required by `colcon` to build and install each package |
 
+### `REPORTS/`: written reports
+
+| File | What it does | Why it is needed |
+|---|---|---|
+| `README.md` | Index of the reports | Says what a report holds and what it must not |
+| `arm-benchmark/` | The SmolVLA-against-X-VLA report as a Word file, its figures, the script that draws them and the data they come from | A report that can be rebuilt and checked on its own; `arm-benchmark/README.md` has the steps |
+
 ### `docs/`: design and reference
 
 | File | Covers |

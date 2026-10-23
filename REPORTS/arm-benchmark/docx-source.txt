@@ -1,0 +1,73 @@
+T SmolVLA against X-VLA on the SO-101 arm
+S Open-loop benchmark on held-out episodes, CARMA project, 22 October 2026
+# 1. Summary
+Two open vision-language-action models, SmolVLA (450M parameters) and X-VLA (0.9B), were fine-tuned here with the same recipe on the same SO-101 pick-the-red-cube episodes, then scored open loop on 18 episodes neither model saw.
+B Fine-tuned SmolVLA imitated the held-out demonstrations more closely: mean joint error 0.0805 rad against 0.0941 rad for X-VLA.
+B The paired per-episode difference is -0.0129 rad (95% bootstrap interval -0.0201 to -0.0057, over episodes). X-VLA was better on 5 of the 18 episodes.
+B The first-step error is 0.033 rad against 0.057 rad, and SmolVLA is better on every joint except shoulder pan, where the two are level.
+B Both calibrated uncertainty maps beat a constant-rate baseline on the test data (Brier 0.199 and 0.224 against 0.250 and 0.245). SmolVLA's map is a little better.
+! This is imitation of recorded demonstrations, not task success. No cube was picked up, by a real or a simulated arm, in this measurement. It is also not a general ranking of the two architectures: X-VLA had to train with its vision-language model frozen, on one seed, one dataset and one task.
+# 2. Method
+## 2.1 Data and split
+B Dataset: whosricky/so101_pick_mixed_cubes_2cams at commit f77f316, Apache-2.0, 182 episodes, 30 fps, top and gripper cameras, task "Pick the red cube".
+B Whole episodes were held out using np.random.default_rng(0).permutation(182): 146 training, 18 calibration (used only to fit the uncertainty map), 18 test (used only for scoring).
+B State and action normalisation statistics come from the 146 training episodes only. The dataset's metadata carries 35 stale duplicate rows for episodes 132 to 166, which were skipped.
+## 2.2 Models and training
+|# Item | SmolVLA | X-VLA
+| Base checkpoint | lerobot/smolvla_base @5e8d12a | lerobot/xvla-base @cdb7964, action_mode auto
+| Trained part | Action expert, 99.9M parameters (VLM frozen) | Policy transformer and soft prompts, 311.0M (Florence-2 encoders frozen)
+| Steps, batch size, seed | 20 000, 8, 0 | 20 000, 8, 0
+| Cameras | top to camera1, gripper to camera2 | top to image, gripper to image2, one empty slot
+| Optimiser | LeRobot preset: lr 1e-4, cosine, 1 000 warm-up steps | Same
+| Peak VRAM | 3.22 GiB | 5.70 GiB
+| Final training loss | 0.080 | 0.017 (a different quantity, not comparable)
+| Wall time | 16.4 h | 21.4 h
+Why the VLMs are frozen: a full X-VLA fine-tune (879M trainable parameters in bf16) runs out of memory at batch 8 on the 8 GB card, and frozen-encoder X-VLA runs out at batch 16. Both models therefore run at batch 8, which is also the recipe of the community checkpoints, and each trains its action model with its VLM frozen.
+I figures/fig3_training_loss.png | Figure 1. Training loss of the two fine-tunes over 20 000 steps, log scale. Both fall and flatten; the two losses are different quantities, so only their shape is comparable.
+## 2.3 Serving and scoring
+B Each model was served behind scripts/policy_server.py over the project's act contract, in bf16, offline, from a spec file in configs/arm_policy/. Both servers passed the determinism self-check: the same request twice gives the same chunk.
+B Every sampled frame (every 15th, 426 frames per model) became one request carrying the arm camera, the world camera, the recorded joint state and the task text, with 4 samples and a fixed seed. Both models saw identical requests.
+B Each returned chunk was scored over its first 25 steps against the actions the demonstrator recorded over the same steps. Joint units were converted once, to the SO-101 URDF radians, for both the state sent and the truth scored.
+B Uncertainty is the spread of the 4 sampled chunks, mapped by a logistic function fitted per model on the calibration episodes. It predicts the event that the chunk's mean joint error exceeds 0.0678 rad, the pooled median calibration error, the same for both models. SmolVLA: a = 2.967, b = 14.338. X-VLA: a = 0.807, b = 5.874.
+# 3. Results on the 18 test episodes
+|# Measure | SmolVLA | X-VLA
+| Mean joint error over the chunk | 0.0805 rad | 0.0941 rad
+| First-step error | 0.0327 rad | 0.0565 rad
+| Shoulder lift | 0.157 rad | 0.189 rad
+| Elbow flex | 0.140 rad | 0.165 rad
+| Shoulder pan | 0.058 rad | 0.057 rad
+| Wrist flex | 0.033 rad | 0.046 rad
+| Wrist roll | 0.037 rad | 0.039 rad
+| Gripper | 0.058 rad | 0.070 rad
+| Uncertainty and error rank correlation | 0.553 | 0.439
+| Share above tolerance, test | 0.493 | 0.568
+| Mean predicted uncertainty | 0.466 | 0.530
+| Brier score | 0.199 | 0.224
+| Constant-rate Brier baseline | 0.250 | 0.245
+| Inference time, median | 0.92 s | 0.63 s
+| Inference time, 95th percentile | 1.36 s | 1.01 s
+Paired per-episode difference (SmolVLA minus X-VLA, mean of the episode means): -0.0129 rad, 95% bootstrap interval [-0.0201, -0.0057], from 10 000 resamples of the 18 episodes with replacement.
+I figures/fig1_error_per_joint.png | Figure 2. Mean joint error per joint over the 18 test episodes. SmolVLA is lower on every joint except shoulder pan, where the two are level; the gap is largest on shoulder lift and elbow flex, the joints that move the most.
+I figures/fig2_paired_difference.png | Figure 3. Per-episode difference in mean joint error, SmolVLA minus X-VLA, sorted. SmolVLA was closer on 13 of 18 episodes (blue); X-VLA on 5 (orange), with one episode (170) where it was clearly better.
+I figures/fig4_uncertainty_vs_error.png | Figure 4. Chunk error against predicted uncertainty, one point per frame, with the mean per fifth of the frames. SmolVLA's error rises steadily with its uncertainty. X-VLA's rises over the first four fifths but falls again in the most uncertain fifth, so its map orders the errors only partly.
+## 3.1 Reading the results
+B Under one recipe that fits an 8 GB card, SmolVLA reproduces held-out demonstrations more closely, with the largest gap on the first step and on shoulder lift and elbow flex.
+B Both uncertainty maps carry information. On data they were not fitted on, both score below the constant-rate Brier baseline and their mean predictions sit close to the observed rates. SmolVLA's is monotone (Figure 4); X-VLA's is not, since its most uncertain fifth of frames has lower error than the one before it.
+B X-VLA is faster per request (0.63 s against 0.92 s median, Figure 5) but was measured on a shared GPU, so the latencies are not idle-GPU numbers.
+I figures/fig5_latency.png | Figure 5. Inference time per request, boxes show the quartiles and whiskers the range without outliers. The GPU was shared with another CUDA process and SOLIDWORKS.
+## 3.2 What the results do not show
+B Task success, or closed-loop or real-arm behaviour.
+B A general ranking of the architectures: X-VLA trained with its VLM frozen and at batch 8 because of the card, with one seed, one dataset and one task.
+B Absolute latency: another CUDA process and SOLIDWORKS shared the GPU, and both training runs were about 1.5 to 2 times slower than their uncontended probes (0.69 and 0.58 s per step).
+# 4. Earlier plumbing check
+Before this benchmark, a matched pair of community checkpoints (same author, same dataset) were served and driven in Gazebo. A synthesised spoken instruction, "Pick up the red cube in front of the robot.", went through the speech node into the pipeline and moved the simulated arm under each model. The shoulder lift swept 1.59 rad under SmolVLA and 1.08 rad under X-VLA, a spoken stop held every joint within 0.005 rad, and go resumed it. Those checkpoints were trained on every episode of the dataset, so their open-loop numbers (joint error 0.049 and 0.082 rad) are not comparable with the table above. The simulated world has no red cube and the arm is drawn with primitive shapes, so this shows the path works, not task skill.
+# 5. Reproducibility
+B All components are Apache-2.0 and ungated, pinned to a commit, and run offline. Nothing in the runtime path needs an account or network.
+B A run is defined by configuration, seed and commit. Training seed 0; the benchmark used fixed per-request seeds, so a rerun sends identical requests.
+B Code: commits 0fd8104 (split and uncertainty fitter), 613343b (training-log fix) and ed48229 (specs, results and docs). Environment: LeRobot 0.6.1, torch 2.10.0+cu128, NVIDIA RTX 2000 Ada Laptop GPU with 8 GB, Windows 11.
+B Everything needed to redo the figures and check the numbers is in REPORTS/arm-benchmark/data/: the split, both training configs and loss curves, the calibration and test predictions per frame, the uncertainty fit, the summaries and the environment record. The same files are recorded in training/results/2026-10-22_arm-benchmark/, and the dated entry with the exact commands is in training/results/RESULTS.md. REPORTS/arm-benchmark/README.md gives the steps.
+# 6. What is still open
+B Closed-loop success on the arm, which open-loop error does not measure.
+B More seeds, and a full X-VLA fine-tune on a larger GPU, before ranking the two architectures.
+B Checking the joint-unit map against a calibrated real SO-101 before trusting an angle on hardware.
+E Every number above is taken from training/results/RESULTS.md and the data folder next to this report.
