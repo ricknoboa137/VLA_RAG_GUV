@@ -27,7 +27,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 LOG_LINE = re.compile(
-    r"step:(\d+) smpl:(\S+) .*?loss:([\d.]+) grdn:([\d.]+) lr:([\d.e+-]+) "
+    r"step:(\d+K?) smpl:(\S+) .*?loss:([\d.]+) grdn:([\d.]+) lr:([\d.e+-]+) "
     r"updt_s:([\d.]+) data_s:([\d.]+)"
 )
 PACKAGES = ("torch", "torchvision", "torchcodec", "lerobot", "transformers", "accelerate")
@@ -68,7 +68,16 @@ def _environment() -> dict[str, object]:
 
 
 def _curve(log: Path, dest: Path) -> int:
+    """Reduce a training log to a CSV loss curve; returns the rows written.
+
+    LeRobot abbreviates steps past a thousand ("1K", "20K"), so when it does,
+    each row's step is rebuilt from its position: rows are logged every
+    ``log_freq`` steps, and the first row, logged unabbreviated, is ``log_freq``.
+    """
     rows = LOG_LINE.findall(log.read_text(encoding="utf-8", errors="replace"))
+    if rows and any(r[0].endswith("K") for r in rows):
+        freq = int(rows[0][0])
+        rows = [(str((i + 1) * freq), *r[1:]) for i, r in enumerate(rows)]
     with dest.open("w", newline="", encoding="utf-8") as fh:
         writer = csv.writer(fh)
         writer.writerow(["step", "samples", "loss", "grad_norm", "lr", "updt_s", "data_s"])

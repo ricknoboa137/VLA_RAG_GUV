@@ -109,8 +109,7 @@ X-VLA's samples spread almost 30 times less than SmolVLA's for the same request
 (0.0006 against 0.017 of the joint range on the self-check frame), so the same
 map gives X-VLA a far lower number without it being any more right.
 Calibrating needs held-out episodes, which these checkpoints do not have. The
-spec already supports a fitted logistic map (`method: logistic`) for the fine-tuned
-pair.
+pair fine-tuned here does, and its specs use a fitted logistic map (below).
 
 ## On the robot
 
@@ -144,18 +143,56 @@ models were trained on the episodes.
 
 Open-loop error measures imitation of the recording, not task success.
 
+## The held-out benchmark (2026-10-22)
+
+Both bases were fine-tuned here on the same 146 of the dataset's 182 episodes
+(seed-0 split, `training/splits/so101_red_cube_seed0.json`), with 20 000
+steps, batch 8 and seed 0 each, the same two cameras, and normalisation
+statistics taken from the training episodes only. Each trains its action
+model with its VLM frozen: SmolVLA its action expert (100M), X-VLA its policy
+transformer and soft prompts (311M). A full X-VLA fine-tune does not fit in
+8 GB, and frozen X-VLA does not fit at batch 16. Specs:
+`configs/arm_policy/{smolvla,xvla}_so101_red_cube_seed0.yaml`; both pass
+`--self-check`.
+
+On 18 test episodes neither model saw, scored open loop:
+
+| | SmolVLA | X-VLA |
+|---|---|---|
+| Mean joint error over the chunk | **0.081 rad** | 0.094 rad |
+| First-step error | **0.033 rad** | 0.057 rad |
+| Uncertainty-error rank correlation | 0.55 | 0.44 |
+| Brier (constant baseline 0.25) | 0.199 | 0.224 |
+
+SmolVLA's lead is 0.013 rad per episode, 95% bootstrap interval
+[0.006, 0.020]; X-VLA was closer on 5 of the 18 episodes. Full numbers,
+commands and caveats: `training/results/RESULTS.md`, 2026-10-22.
+
+**What the numbers do and do not show.** They show which fine-tune
+reproduces held-out demonstrations more closely, under one recipe that fits
+an 8 GB card. They do not show task success: open-loop error scores each
+chunk from the demonstrator's own observations, so a policy can match
+closely and still miss the cube, or drift and still pick it up. They do not
+rank the architectures in general either: X-VLA ran with its VLM frozen and
+a small batch, and only one seed, dataset and task were run. Latencies were
+measured on a shared GPU.
+
+**Calibrated uncertainty.** The fine-tuned specs use `method: logistic`,
+fitted per model on the 18 calibration episodes for one event, "chunk mean
+joint error > 0.0678 rad" (the pooled median, the same tolerance for both
+models). The resulting `u` is a probability of that event for that model
+only. On the test episodes both maps beat a constant rate and predict close
+to the observed rate (SmolVLA 0.47 predicted against 0.49 observed, X-VLA
+0.53 against 0.57). The community specs stay `uncalibrated`.
+
 ## What is still open
 
-1. **The fair benchmark.** Fine-tune `smolvla_base` and `xvla-base` (joint
-   action space, `action_mode: auto`) on one SO-101 dataset with a held-out
-   episode split, then run the harness on the held-out episodes. On the 8 GB
-   development GPU SmolVLA fine-tunes at about 12 samples/s
-   (`training/README.md`); X-VLA's 0.9B has not been measured there and will
-   likely need LoRA or a frozen VLM.
-2. **Calibrated uncertainty**, fitted on those held-out episodes.
-3. **Closed-loop success**, which open-loop error does not measure. The
+1. **More than one seed and a full X-VLA fine-tune.** The benchmark is one
+   seed. X-VLA's full fine-tune (or LoRA, which would need the `peft`
+   package) needs more than 8 GB.
+2. **Closed-loop success**, which open-loop error does not measure. The
    Gazebo arm uses primitive geometry and the row-crop world has no red cube,
    so the models' behaviour there says nothing about task skill; recording
    the robot's own episodes, real or simulated, is the route.
-4. **Real-arm units.** Check the joint map against a calibrated SO-101 before
+3. **Real-arm units.** Check the joint map against a calibrated SO-101 before
    trusting an angle on hardware.

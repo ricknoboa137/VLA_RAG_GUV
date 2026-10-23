@@ -125,6 +125,27 @@ def test_logistic_uncertainty(arm: ModuleType) -> None:
     assert u.key == "chunk_spread/logistic"
 
 
+def test_logistic_fit_recovers_the_hand_computed_maximum_likelihood(arm: ModuleType) -> None:
+    # Four chunks at ln(s) = -1 with one exceeding, four at ln(s) = +1 with three.
+    # MLE: sigmoid(-a + b) = 1/4 and sigmoid(a + b) = 3/4, so b = 0, a = ln 3.
+    spreads = np.array([math.exp(-1.0)] * 4 + [math.exp(1.0)] * 4)
+    exceeded = np.array([True, False, False, False, True, True, True, False])
+    a, b = arm.fit_logistic(spreads, exceeded, ridge=0.0)
+    assert a == pytest.approx(math.log(3.0), abs=1e-8)
+    assert b == pytest.approx(0.0, abs=1e-8)
+
+
+def test_logistic_fit_stays_finite_on_separable_data(arm: ModuleType) -> None:
+    spreads = np.array([0.001, 0.002, 0.1, 0.2])
+    a, b = arm.fit_logistic(spreads, np.array([False, False, True, True]))
+    assert math.isfinite(a) and math.isfinite(b) and a > 0.0
+
+
+def test_logistic_fit_rejects_a_zero_spread(arm: ModuleType) -> None:
+    with pytest.raises(ValueError, match="positive"):
+        arm.fit_logistic(np.array([0.0, 0.1]), np.array([False, True]))
+
+
 def test_an_unreadable_spread_is_full_uncertainty(arm: ModuleType) -> None:
     u = arm.UncertaintyMap()
     assert u(float("nan")) == 1.0
@@ -173,16 +194,33 @@ def test_each_spec_loads_and_pins_a_revision(arm: ModuleType, path: Path) -> Non
     assert spec.cameras[0][1] == "image", "the arm camera, the primary view, comes first"
 
 
-def test_the_compared_models_share_units_cameras_and_uncertainty(arm: ModuleType) -> None:
-    """A benchmark of two models must differ only by the model."""
+def _pairs(arm: ModuleType) -> list[list[object]]:
+    """The specs grouped into compared pairs: by checkpoint origin, community or fine-tuned here."""
     specs = [arm.load_spec(p) for p in _SPECS]
-    assert {s.kind for s in specs} == {"smolvla", "xvla"}
-    first, *rest = specs
-    for other in rest:
+    groups: dict[bool, list[object]] = {}
+    for spec in specs:
+        groups.setdefault(spec.uncertainty.method == "logistic", []).append(spec)
+    return list(groups.values())
+
+
+def test_the_compared_models_share_units_cameras_and_uncertainty(arm: ModuleType) -> None:
+    """A benchmark of two models must differ only by the model.
+
+    A fitted uncertainty map belongs to its model, so a fine-tuned pair shares
+    the method and the tolerance it was fitted against, not the coefficients.
+    """
+    for pair in _pairs(arm):
+        assert sorted(s.kind for s in pair) == ["smolvla", "xvla"]
+        first, other = pair
         assert other.joints == first.joints
-        assert other.uncertainty == first.uncertainty
         assert other.fps == first.fps
         assert sorted(src for _, src in other.cameras) == sorted(src for _, src in first.cameras)
+        if first.uncertainty.method == "logistic":
+            assert other.uncertainty.method == "logistic"
+            assert other.uncertainty.tolerance_rad == first.uncertainty.tolerance_rad > 0.0
+            assert other.uncertainty.source == first.uncertainty.source != ""
+        else:
+            assert other.uncertainty == first.uncertainty
 
 
 def test_spec_joint_maps_end_at_the_simulated_arms_limits(arm: ModuleType) -> None:

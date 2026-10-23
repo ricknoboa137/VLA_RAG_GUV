@@ -1,0 +1,36 @@
+# X-VLA fine-tuned here from lerobot/xvla-base on the training episodes of
+# training/splits/so101_red_cube_seed0.json (146 of 182 episodes of
+# whosricky/so101_pick_mixed_cubes_2cams @f77f316), for the held-out benchmark
+# against its pair, smolvla_so101_red_cube_seed0.yaml. Same steps (20 000), batch (8),
+# seed (0), cameras and normalisation (training episodes only) for both; policy transformer and soft prompts trained, Florence-2 encoders frozen, action_mode auto.
+# Recorded in training/results/2026-10-22_arm-benchmark/.
+# Served by: python scripts/policy_server.py --policy xvla --arm-spec configs/arm_policy/xvla_so101_red_cube_seed0.yaml
+# Not an experiment config: never part of a config hash. See docs/arm-policies.md.
+kind: xvla
+checkpoint: assets/xvla_so101_red_cube_seed0
+# Not on the Hub: built from this repository's training code at the revision named.
+model_id: local/xvla-so101-red-cube-seed0
+model_revision: d549069caaee8541e4e80bff6e79e572be29af5d
+dtype: bfloat16
+fps: 30.0
+horizon: 30
+cameras:
+  observation.images.image2: image
+  observation.images.image: world_left
+joints:
+  shoulder_pan:  {model: [-100.0, 100.0], rad: [-1.91986, 1.91986]}
+  shoulder_lift: {model: [-100.0, 100.0], rad: [-1.74533, 1.74533]}
+  elbow_flex:    {model: [-100.0, 100.0], rad: [-1.69, 1.69]}
+  wrist_flex:    {model: [-100.0, 100.0], rad: [-1.65806, 1.65806]}
+  wrist_roll:    {model: [-100.0, 100.0], rad: [-2.74385, 2.84121]}
+  gripper:       {model: [0.0, 100.0], rad: [-0.174533, 1.74533]}
+# Fitted on the 18 calibration episodes (stride 15, 413 frames) by
+# scripts/fit_arm_uncertainty.py: P(chunk mean joint error > tolerance_rad).
+# Calibrated for that event and this model only; the tolerance is the pooled
+# median calibration error of both models, the same number for each.
+uncertainty:
+  method: logistic
+  a: 0.806809842237391
+  b: 5.873641299781433
+  tolerance_rad: 0.06776438611049795
+  source: training/results/2026-10-22_arm-benchmark/uncertainty_fit.json
