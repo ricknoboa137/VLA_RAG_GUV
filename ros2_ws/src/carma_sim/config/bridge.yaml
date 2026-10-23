@@ -88,7 +88,10 @@
 # Not in the contract: nothing in the CARMA library reads or commands the arm.
 # Bridging a topic no model publishes is harmless, so these entries stay in the
 # one file whether or not the arm is spawned. Angles in radians.
-- ros_topic_name: "/carma/arm/joint_states"
+# The ROS name differs from the Gazebo one on purpose. Gazebo reports the two
+# finger joints; gripper_relay.py folds them into the single "gripper" entry the
+# rest of the project expects and republishes the result on /carma/arm/joint_states.
+- ros_topic_name: "/carma/arm/gz_joint_states"
   gz_topic_name: "/carma/arm/joint_states"
   ros_type_name: "sensor_msgs/msg/JointState"
   gz_type_name: "gz.msgs.Model"
@@ -124,8 +127,16 @@
   gz_type_name: "gz.msgs.Double"
   direction: ROS_TO_GZ
 
-- ros_topic_name: "/carma/arm/gripper/cmd_pos"
-  gz_topic_name: "/carma/arm/gripper/cmd_pos"
+# Metres of finger travel. Not for clients: command /carma/arm/gripper/cmd_pos
+# (radians) and gripper_relay.py translates it for both fingers.
+- ros_topic_name: "/carma/arm/gripper_plus/cmd_pos"
+  gz_topic_name: "/carma/arm/gripper_plus/cmd_pos"
+  ros_type_name: "std_msgs/msg/Float64"
+  gz_type_name: "gz.msgs.Double"
+  direction: ROS_TO_GZ
+
+- ros_topic_name: "/carma/arm/gripper_minus/cmd_pos"
+  gz_topic_name: "/carma/arm/gripper_minus/cmd_pos"
   ros_type_name: "std_msgs/msg/Float64"
   gz_type_name: "gz.msgs.Double"
   direction: ROS_TO_GZ

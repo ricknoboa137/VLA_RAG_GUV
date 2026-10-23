@@ -12,6 +12,7 @@ install(DIRECTORY worlds models launch config DESTINATION share/${PROJECT_NAME})
 
 # bgr_relay.py is a node, not data: it goes in lib/ so that ros2 run and the
 # launch file can find it as an executable.
-install(PROGRAMS scripts/bgr_relay.py DESTINATION lib/${PROJECT_NAME})
+install(PROGRAMS scripts/bgr_relay.py scripts/gripper_relay.py
+        DESTINATION lib/${PROJECT_NAME})
 
 ament_package()

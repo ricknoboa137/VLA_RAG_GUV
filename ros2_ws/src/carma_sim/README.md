@@ -164,16 +164,33 @@ the front guard. `arm:=true` spawns the second one, still named `carma_ugv`.
 | Quantity | Value |
 |---|---|
 | Arm base origin in `base_link` | x 0.771, z 0.013 (0.213 m above ground) |
-| Reach, shoulder-lift axis to the jaws | 0.410 m |
-| Arm mass | 0.632 kg, link by link from the URDF |
-| Joint effort / speed limit | 2.94 N·m / 4.7 rad/s (12 V STS3215) |
-| Arm stereo camera | 60 mm baseline, 640 × 480 per eye, 58.9° horizontal, 15 Hz, looking down the jaws |
+| Reach, shoulder-lift axis to the grasp frame | 0.4135 m (0.4108 m with the standard hinged jaw) |
+| Arm mass | 0.661 kg: the six URDF links, plus two 20.7 g fingers |
+| Joint effort / speed limit | 2.94 N·m / 4.7 rad/s (12 V STS3215), the five arm joints |
+| Gripper | two prismatic fingers, 15.4 mm apart closed, 43.4 mm open; one `gripper` joint to clients |
+| Arm stereo camera | 60 mm baseline, 640 × 480 per eye, 58.9° horizontal, 15 Hz, looking down the fingers |
 
-Kinematics, joint limits and link masses are copied from the official URDF
-(`Simulation/SO101/so101_new_calib.urdf` in TheRobotStudio/SO-ARM100,
-Apache-2.0); the links are drawn as cylinders, not the printed-part meshes, so
-nothing is fetched. Checked running: each joint settles within 0.05 rad of
-its command, and the vehicle still drives on `/carma/cmd_vel` with the arm on.
+Kinematics, joint limits and link masses of the five arm joints are copied from
+the official URDF (`Simulation/SO101/so101_new_calib.urdf` in
+TheRobotStudio/SO-ARM100, Apache-2.0) and pinned to it by
+`tests/test_arm_kinematics.py`; those links are drawn as cylinders, not the
+printed-part meshes, so nothing is fetched.
+
+**The gripper is not the URDF's.** The arm carries a rack-and-pinion parallel
+gripper, so the URDF's one hinged `gripper` joint is two prismatic fingers here,
+drawn as boxes sampled from the project's CAD. `scripts/gripper_relay.py` keeps
+the old interface: clients still command `/carma/arm/gripper/cmd_pos` in radians
+and read a single `gripper` in `/carma/arm/joint_states`, which is what the VLA
+configs and `carma_vla` expect. The model's gripper regions are generated from
+`models/so101_follower/gripper_boxes.json` by `tools/build_gripper_sdf.py`; do not
+edit them by hand (`tests/test_arm_gripper.py` fails if you do). The tools, the
+frame assumptions, the licence caveat and the measurements are in
+[docs/arm.md](../../../docs/arm.md#the-gripper).
+
+Checked running (2026-10-23): the gripper reaches a command within 0.12 s and
+lands within 0.015 rad of it, the arm holds still, and the vehicle drives at
+0.292 m/s per simulated second against 0.300 commanded. The simulator is slower
+with the arm on: real-time factor 0.28, against 0.57 without it.
 
 The head camera sees the ground from about 1.8 m ahead, and the pick zone ends
 about 1.0 m ahead of `base_link`, so the head camera never sees a grasp; the
@@ -200,7 +217,11 @@ Also bridged, outside the contract: the three `camera_info` topics, `/clock`
 and `/carma/joint_states`; and, published only with `arm:=true`,
 `/carma/arm/<joint>/cmd_pos`, `/carma/arm/joint_states` and
 `/carma/arm/stereo/{left,right}/{image_rgb,camera_info}`, relayed to `bgr8` on
-`/carma/arm/stereo/{left,right}/image_raw`.
+`/carma/arm/stereo/{left,right}/image_raw`. The arm's `joint_states` reach ROS as
+`/carma/arm/gz_joint_states` (with the two fingers) and `gripper_relay.py`
+republishes them on `/carma/arm/joint_states` with the fingers folded into
+`gripper`; the finger commands `/carma/arm/gripper_{plus,minus}/cmd_pos` (metres)
+are internal to that relay.
 
 ### Why the stereo pair takes a detour
 

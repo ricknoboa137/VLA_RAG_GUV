@@ -151,6 +151,16 @@ def _expand_world(context: LaunchContext) -> list[ExecuteProcess | Node]:
                 }
             ],
         ),
+        # The arm's gripper is two sliding fingers in the simulation but a single
+        # "gripper" joint everywhere else; this node translates between them.
+        # Idle without arm:=true. See scripts/gripper_relay.py.
+        Node(
+            package="carma_sim",
+            executable="gripper_relay.py",
+            name="carma_gripper_relay",
+            output="screen",
+            parameters=[{"use_sim_time": True}],
+        ),
     ]
 
 
