@@ -12,7 +12,7 @@ import sys
 import uuid
 from dataclasses import replace
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Optional
 
 import structlog
 import typer
@@ -41,7 +41,7 @@ def _configure_logging(run_dir: Path) -> None:
 @app.command()
 def run(
     config: Annotated[Path, typer.Option(help="Experiment config YAML.")],
-    seed: Annotated[int | None, typer.Option(help="Override the config seed.")] = None,
+    seed: Annotated[Optional[int], typer.Option(help="Override the config seed.")] = None,
     out: Annotated[Path, typer.Option(help="Root directory for run outputs.")] = Path("runs"),
 ) -> None:
     """Run one experiment and write its manifest, metrics and decision log."""
