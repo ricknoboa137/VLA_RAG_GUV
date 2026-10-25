@@ -45,6 +45,10 @@ models = [
 stream = [
   "paho-mqtt==2.1.0",
 ]
+# Operator interface: MQTT-backed operator for Quest voice (src/carma/operator/mqtt.py).
+operator = [
+  "paho-mqtt==2.1.0",
+]
 # Operator speech: offline speech-to-text and microphone capture (scripts/mic_mqtt.py).
 voice = [
   "faster-whisper==1.2.1",

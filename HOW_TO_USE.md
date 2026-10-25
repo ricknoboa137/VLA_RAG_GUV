@@ -43,8 +43,10 @@ everything at once.
 | Quest controller and head pose → `test1` topic | Published. Nothing in this repository reads it yet; the robot side that does is not here |
 | Gazebo simulation: cameras, depth, odometry, driving with `/carma/cmd_vel` | Works |
 | Experiments (`carma run`) on the synthetic simulator | Works, and writes reproducible manifests |
-| Experiments on Gazebo | **Not yet.** `carma_bridge` and `src/carma/sim/gazebo.py` are skeletons; use `sim.kind: synthetic` |
-| A real VLA model as the backbone | Not yet. `policy_server.py --policy echo` stands in; the X-VLA slot is deliberately unimplemented (see `docs/vla-integration.md`) |
+| Experiments on Gazebo (GazeboAdapter + carma_bridge) | **Works end-to-end.** `src/carma/sim/gazebo.py` implements the socket transport; `carma_bridge` node synchronises topics. Run `configs/experiment/e2e_gazebo_mqtt_remote.yaml`. |
+| Remote VLA backbone (policy server) | Works. `policy_server.py --policy echo` validates plumbing; `--policy smolvla/xvla` needs carma-train env + checkpoint (see `docs/vla-integration.md`) |
+| Quest voice → CARMA operator | Works. `CarmaVoice` → MQTT `carma/operator/audio` → `carma_voice` container → `carma/operator/utterance` → `MqttOperator` (`src/carma/operator/mqtt.py`) |
+| Full stack: Gazebo + MQTT voice + remote VLA | **Works end-to-end.** See `configs/experiment/e2e_gazebo_mqtt_remote.yaml` and section 5 below. |
 
 **One camera, one reader.** A USB camera can be opened by only one program at
 a time. With a single camera you therefore choose either the **analysis +
@@ -199,6 +201,58 @@ must allow `mosquitto.exe` inbound.
 Run Option A's terminals 1 and 3. Then run two camera senders, one per camera:
 `python scripts/webcam_mqtt.py --camera 0` for the vision container, and the
 Option B command with `--camera 1` for the headset.
+
+### Option D: Full Stack — Gazebo + MQTT Voice + Remote VLA
+
+This runs the complete arbitration loop with the simulated robot, real voice
+operator, and a policy server.
+
+**Terminal 1. Start Gazebo + ROS 2 Bridge**
+```bash
+docker compose -f docker/compose.yaml --profile sim up --build sim
+```
+Wait for `sim` to report it is publishing `/carma/stereo/left/image_raw`,
+`/carma/camera/depth`, `/carma/odom` at ~10–15 Hz (software rendering).
+
+**Terminal 2. Start carma_bridge**
+```bash
+docker compose -f docker/compose.yaml --profile sim run --rm shell ros2 run carma_bridge bridge_node
+```
+This synchronises the four robot topics into an `Observation` and serves it to
+the library on TCP port 5555.
+
+**Terminal 3. Start Policy Server**
+```bash
+python scripts/policy_server.py --policy echo --self-check
+```
+This serves the in-repo heuristic on `http://127.0.0.1:8000/act`. For a real VLA,
+see `docs/vla-integration.md`.
+
+**Terminal 4. Start MQTT Broker** (if not already running)
+```bash
+# Windows
+mosquitto.exe -c mosquitto.conf
+# Linux/macOS
+mosquitto -c /etc/mosquitto/mosquitto.conf
+```
+
+**Terminal 5. Run the Experiment**
+```bash
+carma run --config configs/experiment/e2e_gazebo_mqtt_remote.yaml
+```
+
+The experiment uses:
+- `sim.kind: gazebo` → connects to `carma_bridge` on TCP 5555
+- `operator.kind: mqtt` → subscribes to `carma/operator/utterance` on broker `192.168.0.153:1883`
+- `backbone.kind: remote` → calls `http://127.0.0.1:8000/act`
+
+**To use the Quest headset as the operator**, start the `carma_voice` container
+and the CarmaQuest app (section 7):
+```bash
+docker compose -f docker/compose.yaml up -d voice
+```
+Hold **B**, speak ("stay left when the canopy narrows"), release. The utterance
+appears in CARMA as a `Correction` and is stored in memory.
 
 ---
 

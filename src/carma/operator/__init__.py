@@ -8,6 +8,8 @@ make, and a channel that under-reports them invalidates the headline result.
 from __future__ import annotations
 
 from carma.operator.registry import OPERATORS
+from carma.operator import mqtt  # noqa: F401 — registers the MQTT operator
 from carma.operator.scripted import ScriptedOperator
+from carma.operator.mqtt import MqttOperator
 
-__all__ = ["OPERATORS", "ScriptedOperator"]
+__all__ = ["OPERATORS", "ScriptedOperator", "MqttOperator"]
