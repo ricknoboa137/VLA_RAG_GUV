@@ -10,6 +10,9 @@ needs only Docker.
 ---
 
 ## 1. The system at a glance
+<img width="1024" height="572" alt="image" src="https://github.com/user-attachments/assets/8ff7ea09-110d-4c05-ad46-bc4cc4ee5709" />
+
+
 
 ```
                 ┌──────────────────────── MQTT broker (Mosquitto, port 1883) ─────────────────────────┐
