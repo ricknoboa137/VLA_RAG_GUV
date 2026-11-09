@@ -1,0 +1,69 @@
+# The scripted alley expert driving the row-crop world in Gazebo: the ceiling a learned
+# navigation policy is compared against, and the source of its demonstrations.
+# World started with lockstep:=true at stage VEGETATIVE; bring-up in docs/simulation.md.
+# Not part of CI: it needs the sim container.
+name: gazebo_alley_expert
+condition: carma
+seed: 0
+episodes: 4
+
+# Down the clear alley of the row-crop world, from a jittered start (see
+# carma.runtime.episodes.row_alley_episodes).
+route:
+  kind: row_alley
+  params:
+    min_length_m: 10.0
+    max_length_m: 14.0
+    max_steps: 350
+
+backbone:
+  kind: alley_expert
+  params:
+    linear_mps: 0.5
+
+embedder:
+  kind: hashing
+  params:
+    dim: 256
+
+store:
+  kind: in_memory
+
+retriever:
+  kind: similarity
+  params:
+    min_score: 0.15
+
+hygiene:
+  kind: stage_decay
+
+cost_model:
+  kind: linear
+  params:
+    recovery_s: 45.0
+    retrieval_s: 0.12
+    operator_s: 20.0
+    retrieval_efficacy: 0.6
+    ask_efficacy: 0.95
+
+arbiter:
+  kind: cost_aware
+  params:
+    probe_k: 3
+    ask_budget: 10
+
+operator:
+  kind: scripted
+  params:
+    mean_latency_s: 18.0
+    correction_rate: 0.08
+    seed: 0
+
+sim:
+  kind: gazebo
+  params:
+    control_hz: 10.0
+    stage: VEGETATIVE
+    timeout_s: 120.0
+    bridge_url: 127.0.0.1
+    bridge_port: 5555

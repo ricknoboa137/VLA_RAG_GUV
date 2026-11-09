@@ -104,7 +104,10 @@ def _expand_world(context: LaunchContext) -> list[ExecuteProcess | Node]:
     # -r run on start, -s server only, --headless-rendering renders the cameras
     # through EGL with no display, which is what makes this work in a container
     # and in CI.
-    gz_args = ["gz", "sim", "-r", "-v", verbosity]
+    lockstep = LaunchConfiguration("lockstep").perform(context).lower() in ("true", "1")
+    # Without -r the world starts paused. In lockstep carma_bridge advances it
+    # one control period at a time through the world-control service below.
+    gz_args = ["gz", "sim", "-v", verbosity] if lockstep else ["gz", "sim", "-r", "-v", verbosity]
     if headless:
         gz_args += ["-s", "--headless-rendering"]
     gz_args.append(str(expanded))
@@ -116,6 +119,18 @@ def _expand_world(context: LaunchContext) -> list[ExecuteProcess | Node]:
             # Gazebo's exit takes the whole launch down with it; otherwise the
             # bridge lingers, subscribed to topics nothing publishes any more.
             on_exit=[Shutdown(reason="gz sim exited")],
+        ),
+        # World control (pause, step, reset) and placing the robot are services, which the YAML config
+        # cannot express, so it gets its own bridge. Used by carma_bridge.
+        Node(
+            package="ros_gz_bridge",
+            executable="parameter_bridge",
+            name="carma_gz_world_control",
+            output="screen",
+            arguments=[
+                "/world/row_crop/control@ros_gz_interfaces/srv/ControlWorld",
+                "/world/row_crop/set_pose@ros_gz_interfaces/srv/SetEntityPose",
+            ],
         ),
         Node(
             package="ros_gz_bridge",
@@ -196,6 +211,14 @@ def generate_launch_description() -> LaunchDescription:
                 description=(
                     "Spawn the SO-101 follower arm on the front of the vehicle "
                     "(models/carma_ugv_arm). Off for the recorded experiments."
+                ),
+            ),
+            DeclareLaunchArgument(
+                "lockstep",
+                default_value="false",
+                description=(
+                    "Start the world paused so carma_bridge can step it one control "
+                    "period at a time. Required for reproducible carma runs."
                 ),
             ),
             DeclareLaunchArgument("verbosity", default_value="2"),

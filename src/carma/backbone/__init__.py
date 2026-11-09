@@ -8,8 +8,9 @@ config. See ``AGENTS.md`` section 3.
 
 from __future__ import annotations
 
+from carma.backbone.alley_expert import AlleyExpert
 from carma.backbone.heuristic import HeuristicBackbone
 from carma.backbone.registry import BACKBONES
 from carma.backbone.remote import RemoteBackbone
 
-__all__ = ["BACKBONES", "HeuristicBackbone", "RemoteBackbone"]
+__all__ = ["BACKBONES", "AlleyExpert", "HeuristicBackbone", "RemoteBackbone"]

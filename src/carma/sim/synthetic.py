@@ -40,10 +40,10 @@ class SyntheticSim:
         self._t = 0.0
         self._rng = np.random.default_rng(seed)
 
-    def reset(self, *, seed: int) -> Observation:
-        """Start a new episode at the origin."""
+    def reset(self, *, seed: int, start: Pose) -> Observation:
+        """Start a new episode at ``start``."""
         self._rng = np.random.default_rng(seed)
-        self._pose = Pose(0.0, 0.0, 0.0)
+        self._pose = start
         self._t = 0.0
         return self._observe()
 

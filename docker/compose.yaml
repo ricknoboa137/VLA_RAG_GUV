@@ -81,10 +81,20 @@ services:
     command: ros2 launch carma_vla vla.launch.py policy_url:=${POLICY_URL:-http://host.docker.internal:8000/act} primary:=${VLA_PRIMARY:-arm} drive:=${VLA_DRIVE:-false} arm:=${VLA_ARM:-false}
     restart: "no"
 
+  # Serves carma.sim.gazebo.GazeboAdapter on TCP 5555. Needs ros_gz_interfaces
+  # (world control), which only the sim image carries. Run it with the sim
+  # started as LOCKSTEP=true, so the world is paused and stepped by this node.
   bridge:
     <<: *ros
+    image: carma-ros-sim:jazzy
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: sim
     profiles: [bridge]
     command: ros2 run carma_bridge bridge_node
+    ports:
+      - "${CARMA_BRIDGE_PORT:-5555}:5555"
     restart: "no"
 
   sim:
@@ -95,7 +105,8 @@ services:
       dockerfile: docker/Dockerfile
       target: sim
     profiles: [sim]
-    command: ros2 launch carma_sim row_crop.launch.py
+    # LOCKSTEP=true starts the world paused for carma_bridge (reproducible runs).
+    command: ros2 launch carma_sim row_crop.launch.py lockstep:=${LOCKSTEP:-false}
     restart: "no"
 
   shell:

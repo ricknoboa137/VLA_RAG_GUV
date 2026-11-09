@@ -47,8 +47,14 @@ topics. That is the point of naming them here rather than in either package.
 
 ## Status
 
-Node skeleton only: the robot→bridge half of the contract is satisfied by
-`carma_sim`, but this node does not yet synchronise those topics into an
-`Observation`, and `GazeboAdapter` in `src/carma/sim/gazebo.py` does not yet
-consume one. Implement both against the contract above; until then run
-experiments with `sim.kind=synthetic`.
+Implemented: `bridge_node` serves `GazeboAdapter` in lockstep (wire format in
+`carma_bridge/protocol.py`, behaviour and the replay check in
+`docs/simulation.md`). It needs the world launched with `lockstep:=true`, which
+also bridges Gazebo's world-control service. The `/carma/observation` and
+`/carma/reset` entries in the table above are superseded by the TCP protocol:
+the library never subscribes to ROS, and a reset is a request, not a service.
+
+Synchronisation differs from the first draft of this contract in one respect:
+left image, right image and depth go through the approximate-time policy, but
+the pose is the odometry message at the end of the step, selected by stamp, so
+it is exact for the returned time instead of up to a camera period old.

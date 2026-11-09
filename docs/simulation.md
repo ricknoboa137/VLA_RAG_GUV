@@ -101,12 +101,104 @@ render loop cannot hold real-time factor 1; a GPU host reaches nominal. That
 rate is worth recording per run, since it sets how many decision points an
 episode had.
 
-Not yet implemented, and both needed before an episode can run against Gazebo:
+## Running `carma run` against Gazebo
 
-- `GazeboAdapter` in `src/carma/sim/gazebo.py` is a stub that raises with a
-  clear message. Implement it against the topic contract in
-  `ros2_ws/src/carma_bridge/README.md`.
-- `carma_bridge`'s approximate-time synchroniser, which turns the four topics
-  into an `Observation`.
+`GazeboAdapter` (`sim.kind: gazebo`) drives the world in **lockstep**, which is
+what makes a Gazebo run reproducible (AGENTS.md section 2.2). The world starts
+paused (`lockstep:=true`); each `step` sends one velocity command, `carma_bridge`
+advances the world by exactly `1/control_hz` simulated seconds through Gazebo's
+world-control service, and only then returns the observation. Nothing depends
+on wall-clock time, so a slow software renderer costs time, not correctness.
 
-Until both land, run with `sim.kind=synthetic`.
+Bring-up, in three shells (or `LOCKSTEP=true docker compose -f docker/compose.yaml
+--profile sim --profile bridge up`):
+
+```bash
+ros2 launch carma_sim row_crop.launch.py lockstep:=true stage:=VEGETATIVE
+ros2 run carma_bridge bridge_node            # TCP 5555; published by the bridge compose service
+carma run --config configs/experiment/gazebo_smoke.yaml
+```
+
+`stage:=` must match `sim.params.stage` in the config: the world's crop stage is
+fixed at launch and the config only labels the observations.
+
+What the adapter and bridge guarantee, and how it was checked:
+
+- **Stamps, not arrival order.** The reply holds the newest camera frame and
+  odometry message stamped at or before the step's target time; the bridge
+  waits for the clock to reach the target and for sensor traffic to go quiet
+  (`quiet_s`, 0.15 s of wall time) before choosing. Wall time decides only when
+  to stop waiting. `image_t` and `pose_t` in the reply say which stamps were used.
+- **A 2 s settle after reset** (`settle_iterations`, 2000). "Reset all" restores
+  poses but not the vehicle's whole dynamic state: with a 0.1 s settle the first
+  frame of an episode depended on how the previous episode ended (five distinct
+  frames after episodes of 30, 5, 30, 0 and 12 steps). After the longer settle
+  all five were identical. Episode time `t = 0` is the end of the settle.
+- **Replay check, run on this commit** (software rendering, 640x480): three
+  episodes of 30 steps with identical actions were bit-identical in pose, left
+  image and depth (31 frames each); two complete `gazebo_smoke` experiments
+  (200 steps each) produced identical step records. Repeat the first check with
+  `python scripts/gazebo_replay_check.py --episodes 3 --steps 30` after changing
+  the bridge, the world, the physics step, `command_settle_s` or the sensor
+  rates; it exits 1 and lists the differing frames if replay breaks.
+- **Known limit.** `ros_gz_bridge` gives no acknowledgement for the velocity
+  command, so the bridge pauses `command_settle_s` (0.05 s of wall time) before
+  stepping. Too short a pause would let a step run on the previous command;
+  none was seen in the replays above, which is evidence, not a proof.
+
+Cost: about 0.4 s of wall time per 0.1 s control step with software rendering
+(77 s for a 200-step episode), plus 2 s of simulated time at each reset.
+
+## Routes, start poses and the expert
+
+An experiment config may carry an optional `route:` block. Without it, episodes
+come from `synthetic_episodes` (goals on a ring, for the synthetic simulator);
+`route: {kind: row_alley}` generates down-the-alley episodes for this world
+instead (`carma.runtime.episodes.row_alley_episodes`): the goal is a whole
+number of metres along the clear y = 0 alley, the instruction names it ("drive
+13 metres down the row and stop"), and the robot starts with a seeded lateral
+offset (default +/-0.25 m) and heading error (+/-0.2 rad). The goal is used for
+scoring only and never reaches the policy. A config without `route` hashes as it
+did before the field existed.
+
+`SimAdapter.reset` now takes the episode's start pose, and the episode loop
+stamps the spec's instruction onto every observation, because both belong to the
+episode, not the simulator. In Gazebo the bridge moves the robot there with the
+`set_pose` service and reports poses in the world frame (odometry starts at zero
+at the start pose, so the bridge composes the two). Placing the robot at the
+origin took the same path as before; starting at (0.0, 0.3, 0.25) and driving
+straight moved the robot along that heading, and a later reset to the origin
+reproduced the first episode's trajectory exactly.
+
+`backbone: {kind: alley_expert}` is a scripted lane keeper that reads the pose
+and the instruction. It is the ceiling for learned policies and the source of
+navigation demonstrations, not a contribution. Evaluated in Gazebo
+(`configs/experiment/gazebo_alley_expert.yaml`, VEGETATIVE, four episodes of
+10 to 14 m): 4 of 4 reached the goal radius, lateral excursion at most 0.19 m,
+about 80 s of wall time per episode. An episode ends on entering the success
+radius, so the final distance to the goal is just under it (1.48 m mean).
+`configs/experiment/gazebo_smoke.yaml`, with the heuristic backbone, reaches
+about 3 m of a 10 to 16 m route and succeeds on none, which is the floor to beat.
+
+## Driving the platform by hand and by voice
+
+`scripts/drive_sim.py` opens a window with the platform's left-camera view and
+steps the lockstep world from the keyboard and from spoken commands:
+
+```bash
+python scripts/drive_sim.py              # keyboard + speech
+python scripts/drive_sim.py --no-voice   # keyboard only
+```
+
+Keys (click the window first): `W`/`S` forward and back, `A`/`D` turn, `Q`/`E`
+forward-and-turn, `Space` or `X` stop, `R` back to the start pose, `Esc` quit.
+Speech comes from the `carma_voice` utterance topic (feed it with
+`scripts/mic_mqtt.py`): "go" latches forward, "turn left/right" is a timed turn,
+"stop" clears everything. Longer remarks are suggestions: they do not drive,
+are shown on screen, and are appended to `assets/drive_suggestions.jsonl`.
+
+A held key beats speech; stop beats everything. Timing is counted in control
+steps, so a slow renderer makes the platform respond later in wall time, not
+differently in simulated time. The bridge serves one client, so close any other
+run or recording first. The mapping lives in `carma.sim.teleop` and is covered
+by `tests/test_teleop.py`; the window itself is not tested.

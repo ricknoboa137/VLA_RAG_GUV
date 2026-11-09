@@ -21,6 +21,7 @@ from carma.types.core import (
     Observation,
     OperatorQuery,
     OperatorResponse,
+    Pose,
     RetrievalResult,
 )
 
@@ -194,8 +195,13 @@ class OperatorInterface(Protocol):
 class SimAdapter(Protocol):
     """A simulator or a physical robot, behind one interface."""
 
-    def reset(self, *, seed: int) -> Observation:
-        """Start a new episode and return the first observation."""
+    def reset(self, *, seed: int, start: Pose) -> Observation:
+        """Start a new episode at ``start`` and return the first observation.
+
+        ``start`` is the episode's ``EpisodeSpec.start``; an adapter that cannot
+        place the robot there must raise ``SimulatorError`` rather than start
+        elsewhere, because the episode's success and SPL are scored from it.
+        """
         ...
 
     def step(self, action: Action) -> Observation:

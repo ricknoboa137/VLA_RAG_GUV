@@ -1,0 +1,68 @@
+# Plumbing check against a running Gazebo world started with lockstep:=true.
+# Two episodes, heuristic backbone, scripted operator. Bring-up: docs/simulation.md.
+# Not part of CI: it needs the sim container.
+name: gazebo_smoke
+condition: carma
+seed: 0
+episodes: 2
+
+# Down the clear alley of the row-crop world, from a jittered start (see
+# carma.runtime.episodes.row_alley_episodes).
+route:
+  kind: row_alley
+  params:
+    max_steps: 100
+
+backbone:
+  kind: heuristic
+  params:
+    max_linear: 0.6
+    max_angular: 0.8
+    noise: 0.02
+
+embedder:
+  kind: hashing
+  params:
+    dim: 256
+
+store:
+  kind: in_memory
+
+retriever:
+  kind: similarity
+  params:
+    min_score: 0.15
+
+hygiene:
+  kind: stage_decay
+
+cost_model:
+  kind: linear
+  params:
+    recovery_s: 45.0
+    retrieval_s: 0.12
+    operator_s: 20.0
+    retrieval_efficacy: 0.6
+    ask_efficacy: 0.95
+
+arbiter:
+  kind: cost_aware
+  params:
+    probe_k: 3
+    ask_budget: 10
+
+operator:
+  kind: scripted
+  params:
+    mean_latency_s: 18.0
+    correction_rate: 0.08
+    seed: 0
+
+sim:
+  kind: gazebo
+  params:
+    control_hz: 10.0
+    stage: VEGETATIVE
+    timeout_s: 120.0
+    bridge_url: 127.0.0.1
+    bridge_port: 5555
