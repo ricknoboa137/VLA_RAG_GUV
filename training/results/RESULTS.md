@@ -264,3 +264,25 @@ bit-identical (`cudnn_deterministic` was off).
 expert-only recipe (batch 24) and with the VLM language layers trained
 (batch 16). Throughput, not memory, is the limit: about 12 samples/s, so
 20 000 steps at batch 24 take about 11 hours.
+
+## 2026-11-08 — navigation SmolVLA in the Gazebo alley
+
+SmolVLA fine-tuned on 40 expert demonstrations (`scripts/record_nav_demos.py`,
+seed 100, 8,429 frames, steering-burst disturbances) through the lockstep Gazebo
+link; 32 train / 4 calibration / 4 test episodes (`training/splits/nav_alley_v1_seed0.json`),
+batch 16, 3,000 steps (about 75 min on the 8 GB laptop GPU), chunk 10, action
+`[linear, angular, stop]`. Evaluated closed-loop in Gazebo on 4 routes
+(`configs/experiment/gazebo_alley_navvla.yaml`, seed 0, 1.5 m success radius, one sample).
+
+| Policy | Success | Notes |
+|---|---|---|
+| `alley_expert` (scripted) | 4 / 4 | max offset 0.12-0.19 m |
+| `heuristic` placeholder | 0 / 2 | about 3 m of 10-16 m |
+| nav_v1 (stop frame once per episode) | 1 / 4 | stopped 2-6 m short; stop output never learned |
+| nav_v2 (stop frame repeated 20x) | 3 / 4 | lateral error 0.12-0.19 m; row-003 stopped 1.54 m short |
+
+Offline, driving commands match the expert (MAE 0.001 m/s, 0.014 rad/s on held-out
+episodes), but the stop score at the true goal frame stayed near 0 even on
+training episodes for both runs, so stopping is not yet reliable; the episode loop
+ends on entering the success radius, which masks that. Four episodes only: read
+these as a first measurement, not a rate. Log: `2026-11-08_nav-alley/gazebo_eval_nav_v2.log`.

@@ -63,11 +63,11 @@ def main() -> int:
 
     info = json.loads((args.dataset / "meta" / "info.json").read_text(encoding="utf-8"))
     n_episodes = int(info["total_episodes"])
-    asset = ASSETS[args.dataset.name]
+    asset = ASSETS.get(args.dataset.name)  # locally built datasets have no pinned revision
     split = split_episodes(n_episodes, args.seed, args.held_out)
     record = {
-        "dataset": asset.repo,
-        "revision": asset.revision,
+        "dataset": asset.repo if asset else f"local/{args.dataset.name}",
+        "revision": asset.revision if asset else "local",
         "fetch_entry": args.dataset.name,
         "total_episodes": n_episodes,
         "seed": args.seed,

@@ -120,10 +120,21 @@ ARM_SPECS = {
 }
 
 
-def build_policy(kind: str, arm_spec: Path | None = None, device: str = "cuda") -> Policy:
+def build_policy(
+    kind: str,
+    arm_spec: Path | None = None,
+    device: str = "cuda",
+    checkpoint: Path | None = None,
+) -> Policy:
     """Construct the named policy; an arm policy reads its spec, by default the kind's own."""
     if kind == "echo":
         return EchoPolicy()
+    if kind == "navvla":
+        from nav_policy import NavVlaPolicy
+
+        if checkpoint is None:
+            raise SystemExit("--policy navvla needs --checkpoint <pretrained_model folder>")
+        return NavVlaPolicy(checkpoint, device=device)
     if kind in ARM_SPECS:
         from arm_policy import LeRobotArmPolicy, load_spec
 
@@ -238,12 +249,15 @@ def make_handler(policy: Policy) -> type[BaseHTTPRequestHandler]:
 def main() -> int:
     """Serve until interrupted."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--policy", choices=("echo", *ARM_SPECS), default="echo")
+    parser.add_argument("--policy", choices=("echo", "navvla", *ARM_SPECS), default="echo")
     parser.add_argument(
         "--arm-spec",
         type=Path,
         default=None,
         help="spec for --policy smolvla/xvla (default: the kind's spec in configs/arm_policy/)",
+    )
+    parser.add_argument(
+        "--checkpoint", type=Path, default=None, help="pretrained_model folder for --policy navvla"
     )
     parser.add_argument("--device", default="cuda", help="torch device for an arm policy")
     parser.add_argument("--host", default="127.0.0.1")
@@ -255,7 +269,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    policy = build_policy(args.policy, args.arm_spec, args.device)
+    policy = build_policy(args.policy, args.arm_spec, args.device, args.checkpoint)
     if args.self_check:
         _self_check(policy)
 
