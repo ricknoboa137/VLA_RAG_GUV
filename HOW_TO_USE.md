@@ -523,7 +523,9 @@ This stops and removes every CARMA container. Host scripts stop with Ctrl+C.
 
 Generated folders are never committed: `assets/` (downloaded models), `runs/`
 (experiment output), `build/`, `install/` and `log/` (ROS builds), and Unity's
-`Library/`, `Logs/` and `UserSettings/`.
+`Library/`, `Logs/` and `UserSettings/`. Written reports are not part of the
+repository either: it holds the software, plus the measurement record in
+`training/results/` that configurations cite.
 
 ### Repository root
 
@@ -732,13 +734,6 @@ untouched.
 | `carma_bridge/carma_bridge/bridge_node.py` | Skeleton of the node that will join ROS and the library | Marks where the Gazebo experiment link will be built |
 | `carma_bridge/README.md` | The ROS topic contract between robot and library | Both the simulator and the real robot must publish these topics |
 | `*/package.xml`, `setup.py`, `setup.cfg`, `CMakeLists.txt`, `resource/*`, `__init__.py` | ROS package metadata and build files | Required by `colcon` to build and install each package |
-
-### `REPORTS/`: written reports
-
-| File | What it does | Why it is needed |
-|---|---|---|
-| `README.md` | Index of the reports | Says what a report holds and what it must not |
-| `arm-benchmark/` | The SmolVLA-against-X-VLA report as a Word file, its figures, the script that draws them and the data they come from | A report that can be rebuilt and checked on its own; `arm-benchmark/README.md` has the steps |
 
 ### `docs/`: design and reference
 
