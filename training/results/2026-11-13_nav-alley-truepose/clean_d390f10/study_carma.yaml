@@ -1,0 +1,14 @@
+collision_rate: 0.0
+decision_latency_s:
+  mean: 0.0
+  p50: 0.0
+  p95: 0.0
+episodes: 4
+interventions_per_hectare: 0.0
+mean_neglect_time_s: 0.0
+navigation_error_m: 1.4819566013052006
+operator_latency_total_s: 0.0
+queries_per_100m: 0.0
+retrieval_rate: 0.472127417519909
+spl: 1.0
+success_rate: 1.0

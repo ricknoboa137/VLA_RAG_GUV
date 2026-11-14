@@ -14,6 +14,25 @@ allocator cap (see `training/README.md`, the Windows spill trap).
 
 ---
 
+## 2026-11-14: the five Gazebo conditions reproduced from a clean commit
+
+Folder: [`2026-11-13_nav-alley-truepose/clean_d390f10/`](2026-11-13_nav-alley-truepose/clean_d390f10/)
+
+All five conditions of the 2026-11-13 entry were rerun from a clean checkout
+of `d390f10` (every manifest: `git_dirty: false`), same checkpoint
+(`nav_gt/003000`), same configs and config hashes. Every metric is identical
+to the 2026-11-13 table, so those numbers stand and these manifests are the
+ones to cite.
+
+Policy-server stalls continued: `ask_only` and `carma_no_hygiene` each failed
+twice and `carma` four times on "connection attempt timed out" before a run
+went through; each failed run was discarded whole and rerun from the start, so
+no reported episode contains a retry. A connection probe once a second saw a
+21 s connect timeout to `127.0.0.1:8000` while the server process was alive:
+the server is intermittently not accepting connections. Cause not yet fixed.
+
+---
+
 ## 2026-11-13: navigation SmolVLA in the Gazebo alley, scored on the true pose
 
 Folder: [`2026-11-13_nav-alley-truepose/`](2026-11-13_nav-alley-truepose/)
