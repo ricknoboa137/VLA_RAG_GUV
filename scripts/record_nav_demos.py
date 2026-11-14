@@ -47,8 +47,8 @@ def main() -> int:
     parser.add_argument("--stage", default="VEGETATIVE", choices=[s.name for s in PhenologyStage])
     parser.add_argument("--min-length", type=float, default=6.0)
     parser.add_argument("--max-length", type=float, default=14.0)
-    parser.add_argument("--start-offset", type=float, default=0.4, help="max lateral start, m")
-    parser.add_argument("--start-yaw", type=float, default=0.35, help="max start heading, rad")
+    parser.add_argument("--start-offset", type=float, default=0.25, help="max lateral start, m")
+    parser.add_argument("--start-yaw", type=float, default=0.2, help="max start heading, rad")
     parser.add_argument("--disturb", type=float, default=0.02, help="burst chance per step")
     parser.add_argument("--no-disturb", action="store_true")
     parser.add_argument("--control-hz", type=float, default=10.0)
@@ -77,7 +77,7 @@ def main() -> int:
         bridge_port=args.bridge_port,
     )
     expert = AlleyExpert()
-    written, frames = [], 0
+    written, frames, crashed = [], 0, []
     try:
         for index, spec in enumerate(specs):
             rng = np.random.default_rng(args.seed + 1000 + index)
@@ -88,7 +88,13 @@ def main() -> int:
             written.append(spec.episode_id)
             frames += len(episode.steps)
             bursts = sum(s.disturbed for s in episode.steps)
-            print(f"{spec.episode_id}: {len(episode.steps)} steps, {bursts} disturbed", flush=True)
+            if episode.collided:
+                crashed.append(spec.episode_id)
+            note = "  COLLIDED (left out of training)" if episode.collided else ""
+            print(
+                f"{spec.episode_id}: {len(episode.steps)} steps, {bursts} disturbed{note}",
+                flush=True,
+            )
     finally:
         sim.close()
     manifest = {
@@ -99,6 +105,7 @@ def main() -> int:
         "route": route,
         "disturbance": None if disturbance is None else asdict(disturbance),
         "episodes": written,
+        "collided": crashed,
         "frames": frames,
     }
     (args.out / "manifest.json").write_text(json.dumps(manifest, indent=1), encoding="utf-8")

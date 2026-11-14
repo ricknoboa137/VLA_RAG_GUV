@@ -56,10 +56,17 @@ class NavVlaPolicy:
     @property
     def model_id(self) -> str:
         """The checkpoint folder, so a run names the weights that drove it."""
-        return f"carma-nav-smolvla:{self._checkpoint.parent.parent.parent.name}/{self._checkpoint.parent.name}"
+        run, step = self._checkpoint.parent.parent.parent.name, self._checkpoint.parent.name
+        return f"carma-nav-smolvla:{run}/{step}"
 
-    def chunk(self, rgb_bgr: np.ndarray, pose: tuple[float, float, float], task: str, seed: int,
-              samples: int = 1) -> np.ndarray:  # type: ignore[type-arg]
+    def chunk(
+        self,
+        rgb_bgr: np.ndarray,
+        pose: tuple[float, float, float],
+        task: str,
+        seed: int,
+        samples: int = 1,
+    ) -> np.ndarray:  # type: ignore[type-arg]
         """Predicted action chunks, shape (samples, horizon, 3), in command units."""
         from lerobot.policies.utils import prepare_observation_for_inference
 

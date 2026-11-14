@@ -81,6 +81,9 @@ class Observation:
         stage: Crop stage at capture time.
         rgb_right: Right image of a stereo pair, HWC, BGR, uint8, or ``None``
             for a monocular camera. ``rgb`` is always the left image.
+        collided: True when the robot touched something other than the ground
+            since the previous observation (a crop row, an obstacle). The
+            episode ends there and counts as a failure.
     """
 
     rgb: BgrImage
@@ -90,6 +93,7 @@ class Observation:
     instruction: str
     stage: PhenologyStage
     rgb_right: BgrImage | None = None
+    collided: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -317,17 +321,24 @@ class EpisodeSpec:
 
 @dataclass(frozen=True, slots=True)
 class EpisodeRecord:
-    """The outcome of running one :class:`EpisodeSpec`."""
+    """The outcome of running one :class:`EpisodeSpec`.
+
+    ``collided`` is true when the episode ended because the robot hit
+    something; such an episode is a failure wherever it ended.
+    """
 
     spec: EpisodeSpec
     steps: tuple[StepRecord, ...]
     final_pose: Pose
     path_length: float
     wall_time_s: float
+    collided: bool = False
 
     @property
     def success(self) -> bool:
-        """True when the robot finished inside the goal radius."""
+        """True when the robot finished inside the goal radius without a collision."""
+        if self.collided:
+            return False
         return self.final_pose.distance_to(self.spec.goal) <= self.spec.success_radius
 
     @property

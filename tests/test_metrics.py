@@ -6,11 +6,13 @@ A metric with no hand-computed test is not trusted; see AGENTS.md section 8.
 from __future__ import annotations
 
 import math
+from dataclasses import replace
 
 import pytest
 from tests.conftest import make_episode
 
 from carma.metrics import (
+    collision_rate,
     interventions_per_hectare,
     mean_neglect_time,
     navigation_error,
@@ -28,6 +30,19 @@ def test_success_rate_counts_goal_radius() -> None:
     inside = make_episode(final=Pose(1.0, 0.0, 0.0), goal=Pose(0.0, 0.0, 0.0), path_length=10.0)
     outside = make_episode(final=Pose(9.0, 0.0, 0.0), goal=Pose(0.0, 0.0, 0.0), path_length=10.0)
     assert success_rate([inside, outside]) == pytest.approx(0.5)
+
+
+def test_a_collision_fails_the_episode_even_inside_the_goal_radius() -> None:
+    """Two episodes end inside the radius; the one that collided is a failure.
+
+    Success 1 of 2 = 0.5; collisions 1 of 2 = 0.5.
+    """
+    clean = make_episode(final=Pose(1.0, 0.0, 0.0), goal=Pose(0.0, 0.0, 0.0), path_length=10.0)
+    crashed = replace(clean, collided=True)
+    assert crashed.success is False
+    assert success_rate([clean, crashed]) == pytest.approx(0.5)
+    assert collision_rate([clean, crashed]) == pytest.approx(0.5)
+    assert collision_rate([]) == 0.0
 
 
 def test_navigation_error_is_the_mean_over_all_episodes() -> None:

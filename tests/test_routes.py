@@ -94,3 +94,25 @@ def test_the_synthetic_sim_starts_where_the_episode_says() -> None:
     sim = SyntheticSim()
     obs = sim.reset(seed=0, start=Pose(1.5, -0.25, 0.1))
     assert obs.pose == Pose(1.5, -0.25, 0.1)
+
+
+def test_a_collision_ends_the_episode_as_a_failure() -> None:
+    """A sim that reports a collision on its third step stops the episode there."""
+    from carma.config import build
+    from carma.runtime.episode import run_episode
+    from carma.types.core import Action, Observation
+
+    class Crashing(SyntheticSim):
+        steps = 0
+
+        def step(self, action: Action) -> Observation:
+            Crashing.steps += 1
+            return replace(super().step(action), collided=Crashing.steps == 3)
+
+    cfg = replace(load(_SMOKE), route=ComponentSpec("row_alley", {}))
+    assembly = replace(build(cfg), sim=Crashing())
+    spec = _episodes(replace(cfg, episodes=1))[0]
+    record = run_episode(spec, assembly, seed=0, run_id="t")
+    assert record.collided
+    assert not record.success
+    assert Crashing.steps == 3

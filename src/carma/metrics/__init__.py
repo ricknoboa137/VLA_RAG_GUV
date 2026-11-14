@@ -21,10 +21,11 @@ from carma.metrics.interaction import (
 )
 from carma.metrics.retrieval import precision_at_k, retrieval_rate, staleness_rate
 from carma.metrics.systems import decision_latency_summary
-from carma.metrics.task import navigation_error, spl, success_rate
+from carma.metrics.task import collision_rate, navigation_error, spl, success_rate
 
 __all__ = [
     "MetricBundle",
+    "collision_rate",
     "decision_latency_summary",
     "interventions_per_hectare",
     "mean_neglect_time",

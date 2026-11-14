@@ -127,7 +127,7 @@ def run_episode(
             uncertainty=uncertainty,
         )
 
-        if action.stop or obs.pose.distance_to(spec.goal) <= spec.success_radius:
+        if obs.collided or action.stop or obs.pose.distance_to(spec.goal) <= spec.success_radius:
             break
 
         # The episode, not the simulator, owns the instruction in force.
@@ -140,5 +140,6 @@ def run_episode(
         steps=tuple(steps),
         final_pose=obs.pose,
         path_length=path_length,
+        collided=obs.collided,
         wall_time_s=time.perf_counter() - started,
     )

@@ -150,4 +150,5 @@ class GazeboAdapter:
             t=float(reply["t"]),
             instruction=self._instruction,
             stage=self._stage,
+            collided=bool(reply["collided"]),
         )

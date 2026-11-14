@@ -120,7 +120,7 @@ def _expand_world(context: LaunchContext) -> list[ExecuteProcess | Node]:
             # bridge lingers, subscribed to topics nothing publishes any more.
             on_exit=[Shutdown(reason="gz sim exited")],
         ),
-        # World control (pause, step, reset) and placing the robot are services, which the YAML config
+        # World control (pause, step, reset) is a service, which the YAML config
         # cannot express, so it gets its own bridge. Used by carma_bridge.
         Node(
             package="ros_gz_bridge",
@@ -129,7 +129,6 @@ def _expand_world(context: LaunchContext) -> list[ExecuteProcess | Node]:
             output="screen",
             arguments=[
                 "/world/row_crop/control@ros_gz_interfaces/srv/ControlWorld",
-                "/world/row_crop/set_pose@ros_gz_interfaces/srv/SetEntityPose",
             ],
         ),
         Node(

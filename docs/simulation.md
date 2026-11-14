@@ -125,7 +125,7 @@ fixed at launch and the config only labels the observations.
 What the adapter and bridge guarantee, and how it was checked:
 
 - **Stamps, not arrival order.** The reply holds the newest camera frame and
-  odometry message stamped at or before the step's target time; the bridge
+  pose stamped at or before the step's target time; the bridge
   waits for the clock to reach the target and for sensor traffic to go quiet
   (`quiet_s`, 0.15 s of wall time) before choosing. Wall time decides only when
   to stop waiting. `image_t` and `pose_t` in the reply say which stamps were used.
@@ -149,6 +149,34 @@ What the adapter and bridge guarantee, and how it was checked:
 Cost: about 0.4 s of wall time per 0.1 s control step with software rendering
 (77 s for a 200-step episode), plus 2 s of simulated time at each reset.
 
+### Pose and collisions: what the reply means
+
+- **`pose` is the true pose** from the physics engine
+  (`/carma/ground_truth/odom`, Gazebo's `OdometryPublisher` on the model). It is
+  what episodes are scored on, and what the policy receives: it stands in for
+  the platform's localisation (GNSS or SLAM on the real robot), which is
+  assumed, not simulated. Adding localisation noise is future work.
+- **`odom_pose` is wheel odometry** composed with the start pose, kept for
+  analysis only. Until 2026-11-13 the bridge reported it as `pose`, and that
+  invalidated every Gazebo navigation result before that date: the odometry
+  heading drifted (measured: -0.02 rad reported against -0.86 rad true), the
+  robot drove into a crop row while believing it was centred, and the wheels
+  kept counting metres against the row, so crashed episodes scored as
+  successes. The camera image froze while the reported x kept rising, which is
+  how it was found.
+- **`collided`** is true when the robot's collision shapes, at the true pose,
+  overlap any collision shape in the world except the ground; `collision`
+  names what was hit. The episode ends there and counts as a failure
+  (`EpisodeRecord.collided`, `collision_rate` in the metrics). The shapes are
+  read from Gazebo at start-up (`generate_world_sdf`) and tested in plan view
+  (`carma_bridge/footprint.py`, `tests/test_footprint.py`). Gazebo's own
+  contact sensors were tried first and do not survive the "reset all" that
+  starts each episode: the contact publisher was present before a reset and
+  gone after it.
+- **Clearance.** At VEGETATIVE the rows are 0.45 m wide on 1.5 m centres, so
+  the alley between canopies is 1.05 m and the 0.72 m-wide robot has about
+  +/-0.165 m of lateral room. Small heading errors matter.
+
 ## Routes, start poses and the expert
 
 An experiment config may carry an optional `route:` block. Without it, episodes
@@ -161,24 +189,27 @@ offset (default +/-0.25 m) and heading error (+/-0.2 rad). The goal is used for
 scoring only and never reaches the policy. A config without `route` hashes as it
 did before the field existed.
 
-`SimAdapter.reset` now takes the episode's start pose, and the episode loop
-stamps the spec's instruction onto every observation, because both belong to the
-episode, not the simulator. In Gazebo the bridge moves the robot there with the
-`set_pose` service and reports poses in the world frame (odometry starts at zero
-at the start pose, so the bridge composes the two). Placing the robot at the
-origin took the same path as before; starting at (0.0, 0.3, 0.25) and driving
-straight moved the robot along that heading, and a later reset to the origin
-reproduced the first episode's trajectory exactly.
+`SimAdapter.reset` takes the episode's start pose, and the episode loop stamps
+the spec's instruction onto every observation, because both belong to the
+episode, not the simulator. In Gazebo the bridge resets the world and runs that
+one iteration in a single request, then places the robot with Gazebo's
+`set_pose` service through the `gz` tool, and refuses the reset if the true
+pose is more than 0.15 m from the requested start. Two earlier failures, both
+hidden while the reported pose was odometry composed with the requested start:
+the ROS bridge for `set_pose` answered success without moving the robot, and a
+pose set before the reset iteration was undone by it. Every Gazebo episode
+before 2026-11-13 therefore started at the origin, whatever its spec said.
 
 `backbone: {kind: alley_expert}` is a scripted lane keeper that reads the pose
 and the instruction. It is the ceiling for learned policies and the source of
-navigation demonstrations, not a contribution. Evaluated in Gazebo
-(`configs/experiment/gazebo_alley_expert.yaml`, VEGETATIVE, four episodes of
-10 to 14 m): 4 of 4 reached the goal radius, lateral excursion at most 0.19 m,
-about 80 s of wall time per episode. An episode ends on entering the success
-radius, so the final distance to the goal is just under it (1.48 m mean).
-`configs/experiment/gazebo_smoke.yaml`, with the heuristic backbone, reaches
-about 3 m of a 10 to 16 m route and succeeds on none, which is the floor to beat.
+navigation demonstrations, not a contribution. Evaluated in Gazebo on the true
+pose with collision checking (`configs/experiment/gazebo_alley_expert.yaml`,
+VEGETATIVE, four episodes of 10 to 14 m, 2026-11-13): 4 of 4 reached the goal
+radius with no collision, lateral excursion at most 0.19 m (at the start,
+before the rows begin at x = 2 m), about 80 s of wall time per episode. An
+episode ends on entering the success radius, so the final distance to the goal
+is just under it (1.47 m mean). The heuristic-backbone figure recorded earlier
+(about 3 m, no success) predates the fix and has not been re-measured.
 
 ## Driving the platform by hand and by voice
 

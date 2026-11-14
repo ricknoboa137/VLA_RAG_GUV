@@ -14,7 +14,7 @@ in, so the same ``(config, seed, commit)`` records the same dataset.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import cv2
@@ -38,9 +38,9 @@ class Disturbance:
     """
 
     start_probability: float = 0.02
-    min_steps: int = 5
-    max_steps: int = 15
-    magnitude_radps: float = 0.4
+    min_steps: int = 3
+    max_steps: int = 8
+    magnitude_radps: float = 0.2
 
 
 @dataclass(frozen=True)
@@ -66,12 +66,18 @@ class DemoStep:
 
 @dataclass
 class DemoEpisode:
-    """A recorded episode: its spec and steps, plus the final pose reached."""
+    """A recorded episode: its spec and steps, the final pose, and whether it ended in a crash.
+
+    A collided episode is kept on disk so the rate is visible, and left out of
+    training by ``training/build_nav_dataset.py``: its last frames show the
+    expert's "keep going" label against a crop row.
+    """
 
     spec: EpisodeSpec
     seed: int
     steps: list[DemoStep] = field(default_factory=list)
     final_pose: Pose | None = None
+    collided: bool = False
 
 
 def record_episode(
@@ -85,14 +91,18 @@ def record_episode(
 ) -> DemoEpisode:
     """Drive one episode with the expert and record every step.
 
-    The episode ends when the expert declares stop or ``spec.max_steps`` is hit.
-    The stop step is recorded too, so the policy learns when to stop.
+    The episode ends when the expert declares stop, the robot collides, or
+    ``spec.max_steps`` is hit. The stop step is recorded too, so the policy
+    learns when to stop.
     """
     episode = DemoEpisode(spec=spec, seed=seed)
     obs: Observation = sim.reset(seed=seed, start=spec.start)
     obs = _with_instruction(obs, spec.instruction)
     remaining, sign = 0, 1.0
     for _ in range(spec.max_steps):
+        if obs.collided:
+            episode.collided = True
+            break
         label, _ = expert.act(obs, (), rng=rng)
         if (
             disturbance is not None
@@ -134,6 +144,7 @@ def write_episode(root: Path, episode: DemoEpisode) -> Path:
         "stage": spec.stage.name,
         "start": [spec.start.x, spec.start.y, spec.start.yaw],
         "goal": [spec.goal.x, spec.goal.y, spec.goal.yaw],
+        "collided": episode.collided,
         "final_pose": None
         if episode.final_pose is None
         else [episode.final_pose.x, episode.final_pose.y, episode.final_pose.yaw],
@@ -153,4 +164,4 @@ def write_episode(root: Path, episode: DemoEpisode) -> Path:
 
 
 def _with_instruction(obs: Observation, text: str) -> Observation:
-    return Observation(obs.rgb, obs.depth, obs.pose, obs.t, text, obs.stage)
+    return replace(obs, instruction=text)

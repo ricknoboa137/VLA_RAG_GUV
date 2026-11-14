@@ -593,6 +593,21 @@
       <odom_publish_frequency>30</odom_publish_frequency>
     </plugin>
 
+    <!--
+      Ground truth: the model's true pose from the physics engine, for scoring
+      and as the stand-in for the robot's localisation (GNSS or SLAM on the real
+      platform). /carma/odom above is wheel odometry: it drifts when the wheels
+      slip and keeps counting when the robot is pushed against a crop row.
+    -->
+    <plugin filename="gz-sim-odometry-publisher-system"
+            name="gz::sim::systems::OdometryPublisher">
+      <odom_frame>world</odom_frame>
+      <robot_base_frame>carma_ugv</robot_base_frame>
+      <odom_topic>/carma/ground_truth/odom</odom_topic>
+      <odom_publish_frequency>100</odom_publish_frequency>
+      <dimensions>2</dimensions>
+    </plugin>
+
     <plugin filename="gz-sim-joint-state-publisher-system"
             name="gz::sim::systems::JointStatePublisher">
       <topic>/carma/joint_states</topic>

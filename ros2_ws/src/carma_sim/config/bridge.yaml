@@ -48,6 +48,14 @@
   gz_type_name: "gz.msgs.Odometry"
   direction: GZ_TO_ROS
 
+# Ground truth: used by carma_bridge for scoring and for its collision check
+# (docs/simulation.md).
+- ros_topic_name: "/carma/ground_truth/odom"
+  gz_topic_name: "/carma/ground_truth/odom"
+  ros_type_name: "nav_msgs/msg/Odometry"
+  gz_type_name: "gz.msgs.Odometry"
+  direction: GZ_TO_ROS
+
 # --- not in the contract, but needed to use the images -----------------------
 # Intrinsics, so a consumer does not have to hard-code the numbers documented in
 # models/carma_ugv/model.sdf.

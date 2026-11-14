@@ -84,3 +84,32 @@ def test_written_episode_round_trips(tmp_path: Path) -> None:
     assert meta["instruction"] == episode.spec.instruction
     first = cv2.imread(str(folder / "frames" / "000000.png"))
     assert np.array_equal(first, episode.steps[0].rgb)
+
+
+def test_a_collision_ends_the_recording_and_is_flagged(tmp_path: Path) -> None:
+    from dataclasses import replace
+
+    from carma.types.core import Action, Observation
+
+    class Crashing(SyntheticSim):
+        count = 0
+
+        def step(self, action: Action) -> Observation:
+            Crashing.count += 1
+            return replace(super().step(action), collided=Crashing.count >= 5)
+
+    spec = row_alley_episodes(1, rng=np.random.default_rng(5), min_length_m=8.0, max_length_m=8.0)[
+        0
+    ]
+    episode = record_episode(
+        Crashing(dt=0.1),
+        AlleyExpert(),
+        spec,
+        seed=0,
+        rng=np.random.default_rng(0),
+        disturbance=None,
+    )
+    assert episode.collided
+    assert len(episode.steps) == 5  # the five states before the crash, not the crashed one
+    meta = json.loads((write_episode(tmp_path, episode) / "meta.json").read_text(encoding="utf-8"))
+    assert meta["collided"] is True

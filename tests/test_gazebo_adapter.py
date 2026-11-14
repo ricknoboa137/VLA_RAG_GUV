@@ -36,6 +36,9 @@ def _reply(t: float, x: float = 0.0) -> dict[str, Any]:
         "ok": True,
         "t": t,
         "pose": {"x": x, "y": 0.5, "yaw": 0.25},
+        "odom_pose": {"x": x + 0.1, "y": 0.4, "yaw": 0.2},
+        "collided": False,
+        "collision": None,
         "rgb_png": base64.b64encode(png.tobytes()).decode("ascii"),
         "depth_f32": base64.b64encode(depth.tobytes()).decode("ascii"),
         "height": _HEIGHT,
@@ -141,6 +144,23 @@ def test_close_tells_the_bridge(bridge: FakeBridge) -> None:
     sim.close()  # idempotent
     bridge._thread.join(timeout=2.0)
     assert bridge.requests[-1] == {"op": "close"}
+
+
+def test_a_collision_is_carried_on_the_observation() -> None:
+    def crash(request: dict[str, Any], count: int) -> dict[str, Any]:
+        reply = _reply(t=0.1 * count)
+        reply["collided"] = count == 1
+        reply["collision"] = "crop_field::crop_r1_s3::collision" if count == 1 else None
+        return reply
+
+    fake = FakeBridge(crash)
+    sim = _adapter(fake.port)
+    try:
+        assert not sim.reset(seed=0, start=_START).collided
+        assert sim.step(Action(0.5, 0.0)).collided
+    finally:
+        sim.close()
+        fake.close()
 
 
 def test_step_before_reset_is_an_error() -> None:

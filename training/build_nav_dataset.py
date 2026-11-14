@@ -56,7 +56,13 @@ def convert(demos: Path, out: Path, repo_id: str, stop_hold: int = 0) -> tuple[i
     from lerobot.datasets.lerobot_dataset import LeRobotDataset
 
     manifest = json.loads((demos / "manifest.json").read_text(encoding="utf-8"))
-    names: list[str] = manifest["episodes"]
+    names: list[str] = [
+        name
+        for name in manifest["episodes"]
+        if not json.loads((demos / name / "meta.json").read_text(encoding="utf-8")).get("collided")
+    ]
+    if not names:
+        raise ValueError(f"every episode in {demos} ended in a collision")
     first = cv2.imread(str(demos / names[0] / "frames" / "000000.png"))
     height, width = first.shape[:2]
     dataset = LeRobotDataset.create(
