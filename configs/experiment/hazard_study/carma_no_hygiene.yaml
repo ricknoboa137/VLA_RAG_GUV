@@ -66,6 +66,10 @@ cost_model:
     operator_s: 20.0
     retrieval_efficacy: 0.6
     ask_efficacy: 0.95
+    # rho: chance that a remembered warning at this place still marks a real
+    # risk. Not yet estimated from data; 0.5 is a stated placeholder
+    # (docs/cost-model.md). 0 would give the original model.
+    memory_risk: 0.5
 
 arbiter:
   kind: cost_aware

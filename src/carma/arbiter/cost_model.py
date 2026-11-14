@@ -31,6 +31,13 @@ class LinearCostModel:
         retrieval_efficacy: Fraction of the acting risk that a good retrieval
             removes. Estimated from held-out data, never assumed to be 1.0.
         ask_efficacy: Fraction of the acting risk an operator answer removes.
+        memory_risk: The probability that a remembered operator warning at
+            this place still marks a real risk (``rho`` in
+            ``docs/cost-model.md``). The risk of acting is
+            ``max(uncertainty, memory_risk * expected_gain)``, so memory that
+            knows something here raises the price of acting blind even when
+            the backbone is confident. 0.0 (the default) gives the original
+            model, ``risk = uncertainty``, exactly.
     """
 
     def __init__(
@@ -40,18 +47,33 @@ class LinearCostModel:
         operator_s: float = 20.0,
         retrieval_efficacy: float = 0.6,
         ask_efficacy: float = 0.95,
+        memory_risk: float = 0.0,
     ) -> None:
+        if not 0.0 <= memory_risk <= 1.0:
+            msg = f"memory_risk must be in [0, 1], got {memory_risk}"
+            raise ValueError(msg)
         self._recovery_s = recovery_s
         self._retrieval_s = retrieval_s
         self._operator_s = operator_s
         self._retrieval_efficacy = retrieval_efficacy
         self._ask_efficacy = ask_efficacy
+        self._memory_risk = memory_risk
 
-    def cost_act(self, uncertainty: float) -> float:
+    def risk(self, uncertainty: float, expected_gain: float) -> float:
+        """``max(uncertainty, memory_risk * expected_gain)``, in ``[0, 1]``.
+
+        A hidden hazard is where a policy is confident and wrong, so its
+        uncertainty cannot warn of it; an operator's warning remembered at
+        this place can. Taking the larger of the two, rather than a sum, keeps
+        either source from double-counting the other.
+        """
+        return max(uncertainty, self._memory_risk * expected_gain)
+
+    def cost_act(self, risk: float) -> float:
         """Expected seconds lost by acting on the backbone's output directly."""
-        return uncertainty * self._recovery_s
+        return risk * self._recovery_s
 
-    def cost_retrieve(self, uncertainty: float, expected_gain: float) -> float:
+    def cost_retrieve(self, risk: float, expected_gain: float) -> float:
         """Expected seconds when retrieving first.
 
         ``expected_gain`` in ``[0, 1]`` is the retriever's own estimate that it
@@ -59,14 +81,14 @@ class LinearCostModel:
         that returns nothing costs its latency and removes no risk, which is the
         behaviour that stops unconditional retrieval from being free.
         """
-        residual = uncertainty * (1.0 - self._retrieval_efficacy * expected_gain)
+        residual = risk * (1.0 - self._retrieval_efficacy * expected_gain)
         return self._retrieval_s + residual * self._recovery_s
 
-    def cost_ask(self, uncertainty: float) -> float:
+    def cost_ask(self, risk: float) -> float:
         """Expected seconds when querying the operator.
 
         The operator term is paid in full whatever the uncertainty: a person is
         interrupted regardless of how the robot felt about the situation.
         """
-        residual = uncertainty * (1.0 - self._ask_efficacy)
+        residual = risk * (1.0 - self._ask_efficacy)
         return self._operator_s + residual * self._recovery_s

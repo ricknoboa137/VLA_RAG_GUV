@@ -14,12 +14,19 @@ agronomist.
 ## The three prices
 
 Let `u` be the backbone's uncertainty in `[0, 1]` and `g` the retriever's
-expected gain, normally its top similarity score.
+expected gain, normally its top similarity score. The risk that acting now
+goes wrong is
 
 ```
-cost_act      = u * R
-cost_retrieve = L + u * (1 - e_r * g) * R
-cost_ask      = A + u * (1 - e_a) * R
+r = max(u, rho * g)
+```
+
+and the three prices are
+
+```
+cost_act      = r * R
+cost_retrieve = L + r * (1 - e_r * g) * R
+cost_ask      = A + r * (1 - e_a) * R
 ```
 
 | Symbol | Meaning | How it is obtained |
@@ -29,6 +36,7 @@ cost_ask      = A + u * (1 - e_a) * R
 | `A` | Expected seconds to obtain an operator answer | Measured in the field campaign |
 | `e_r` | Fraction of acting risk a good retrieval removes | Estimated on held-out data |
 | `e_a` | Fraction of acting risk an operator answer removes | Estimated on held-out data |
+| `rho` | Chance that a remembered warning at this place still marks a real risk (`memory_risk`) | Not yet estimated: 0.5 in `configs/experiment/hazard_study/` is a stated placeholder. 0 gives `r = u`, the original model |
 
 ## Three decisions worth defending
 
@@ -45,6 +53,18 @@ would let a confident-but-wrong policy ask for free.
 retrieval that returns something useful. Tying the retrieve price to `g` is
 what stops unconditional retrieval from looking free, and it is the reason the
 arbiter runs a cheap probe before committing to a full retrieval.
+
+**Memory is evidence of risk, not only a remedy for it (`rho`, 2026-11-14).**
+The first version priced risk as `u` alone. A hidden hazard (`docs/hazards.md`)
+is where a policy is confident and wrong, so `u` is near 0 there; acting was
+then free and the arbiter never consulted memory, however strongly the probe
+matched an operator's warning given at that exact place. With a perfect
+context-following backbone, carma scored 0/8 against 7/8 for unconditional
+retrieval. Letting the probe's gain raise the risk, `r = max(u, rho * g)`, gave
+carma 7/8 with 19% fewer retrievals. `max` rather than a sum, so neither source
+double-counts the other; scaled by `rho`, because an old warning can be wrong
+(the patch dried up), which is what memory hygiene is for. With `rho = 0`
+every earlier configuration prices exactly as before.
 
 ## Changing this file
 

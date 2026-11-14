@@ -47,3 +47,23 @@ uncertainty is 0. A hidden hazard is exactly where a policy is confident and
 wrong, so `u` cannot signal it; the probe's gain `g` only discounts a risk
 that `u` has already set to zero. This is a property of the cost model, not of
 the scenario, and changing it is a decision about the method itself.
+
+## With memory counted as risk
+
+`docs/cost-model.md` now prices risk as `r = max(u, rho * g)`. Same setup,
+`memory_risk: 0.5`, 2026-11-14:
+
+| Condition | Success | Hazard entered | Choices |
+|---|---|---|---|
+| no_memory | 0/8 | 8/8 | act only |
+| unconditional_retrieval | 7/8 | 1/8 | 954 retrievals |
+| ask_only | 0/8 | 8/8 | never asked |
+| carma | 7/8 | 1/8 | 771 retrievals, 183 acts |
+| carma_no_hygiene | 7/8 | 1/8 | 771 retrievals, 183 acts |
+
+carma matches unconditional retrieval at 19% fewer retrievals: it acts freely
+where memory knows nothing. The saving is small because the 8 m radius covers
+most of the route before the patch. Every condition loses the first episode:
+memory is empty and a confident backbone never asks. Hygiene makes no
+difference here because the hazard never moves; a patch that dries up between
+passes is the case that would separate them.

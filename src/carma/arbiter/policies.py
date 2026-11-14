@@ -108,12 +108,13 @@ class CostAwareArbiter:
 
         probe = self._retriever.retrieve(obs, self._probe_k)
         expected_gain = probe.best_score
+        risk = self._cost_model.risk(uncertainty, expected_gain)
 
         costs = {
-            Choice.ACT: self._cost_model.cost_act(uncertainty),
-            Choice.RETRIEVE: self._cost_model.cost_retrieve(uncertainty, expected_gain),
+            Choice.ACT: self._cost_model.cost_act(risk),
+            Choice.RETRIEVE: self._cost_model.cost_retrieve(risk, expected_gain),
             Choice.ASK: (
-                self._cost_model.cost_ask(uncertainty)
+                self._cost_model.cost_ask(risk)
                 if self._asks_used < self._ask_budget
                 else float("inf")
             ),
@@ -125,7 +126,7 @@ class CostAwareArbiter:
             choice=choice,
             costs=costs,
             rationale=(
-                f"u={uncertainty:.2f} gain={expected_gain:.2f} "
+                f"u={uncertainty:.2f} gain={expected_gain:.2f} risk={risk:.2f} "
                 f"asks={self._asks_used}/{self._ask_budget}"
             ),
         )
