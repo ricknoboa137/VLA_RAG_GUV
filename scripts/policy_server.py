@@ -34,8 +34,9 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import threading
 import time
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Protocol
 
@@ -188,8 +189,24 @@ def _self_check(policy: Policy) -> None:
     print(f"self-check: deterministic under a fixed seed{detail}")
 
 
+class PolicyHTTPServer(ThreadingHTTPServer):
+    """Accepts every connection at once and answers on its own thread.
+
+    The single-threaded server this replaces accepted the next connection only
+    after answering the current one, with the default listen backlog of 5. On
+    Windows that left the client's connection attempts intermittently
+    unanswered for tens of seconds (seen as WinError 10060 mid-experiment). The
+    policy itself still runs one request at a time, under the lock in
+    :func:`make_handler`, so answers are unchanged.
+    """
+
+    daemon_threads = True
+    request_queue_size = 64
+
+
 def make_handler(policy: Policy) -> type[BaseHTTPRequestHandler]:
-    """A request handler bound to one policy."""
+    """A request handler bound to one policy; inference is serialised by a lock."""
+    lock = threading.Lock()
 
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
@@ -211,7 +228,8 @@ def make_handler(policy: Policy) -> type[BaseHTTPRequestHandler]:
                 return
 
             try:
-                response = policy.act(request)
+                with lock:
+                    response = policy.act(request)
             except NotImplementedError as exc:
                 self._fail(501, str(exc))
                 return
@@ -273,7 +291,7 @@ def main() -> int:
     if args.self_check:
         _self_check(policy)
 
-    server = HTTPServer((args.host, args.port), make_handler(policy))
+    server = PolicyHTTPServer((args.host, args.port), make_handler(policy))
     print(
         f"serving {policy.model_id} on http://{args.host}:{args.port}/act — Ctrl+C to stop",
         flush=True,

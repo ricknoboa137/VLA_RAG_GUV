@@ -32,9 +32,11 @@ from __future__ import annotations
 import json
 import urllib.error
 import urllib.request
-from typing import Protocol
+from collections.abc import Callable
+from typing import Any, Protocol
 
 import numpy as np
+import structlog
 
 from carma.backbone.registry import BACKBONES
 from carma.backbone.wire import ActRequest, ActResponse, encode_image, encode_png16
@@ -50,11 +52,37 @@ class Transport(Protocol):
         ...
 
 
-class HttpTransport:
-    """Posts JSON to a URL with the standard library, so no dependency is added."""
+_log = structlog.get_logger(__name__)
 
-    def __init__(self, url: str) -> None:
+
+class HttpTransport:
+    """Posts JSON to a URL with the standard library, so no dependency is added.
+
+    A connection that cannot be established is retried, up to ``attempts``
+    tries in all, and each retry is logged. Only a failure to connect is
+    retried: the request never reached the server, and since the server
+    samples from the seed in the request alone, resending it cannot change the
+    answer. A request the server received but did not answer in time is not
+    retried; it fails the episode as before.
+
+    Args:
+        url: Endpoint to post to.
+        attempts: Connection attempts per request, at least 1.
+        opener: Injected for tests; defaults to :func:`urllib.request.urlopen`.
+    """
+
+    def __init__(
+        self,
+        url: str,
+        attempts: int = 3,
+        opener: Callable[..., Any] | None = None,
+    ) -> None:
+        if attempts < 1:
+            msg = f"attempts must be at least 1, got {attempts}"
+            raise ValueError(msg)
         self._url = url
+        self._attempts = attempts
+        self._open: Callable[..., Any] = opener if opener is not None else urllib.request.urlopen
 
     def post(self, payload: dict[str, object], timeout_s: float) -> dict[str, object]:
         """POST ``payload`` as JSON and parse the reply."""
@@ -68,12 +96,37 @@ class HttpTransport:
         if not self._url.startswith(("http://", "https://")):
             msg = f"policy url must be http(s), got {self._url!r}"
             raise BackboneError(msg)
+        for attempt in range(1, self._attempts + 1):
+            try:
+                return self._post_once(request, timeout_s)
+            except urllib.error.HTTPError as exc:
+                msg = f"policy server at {self._url} did not answer: HTTP {exc.code} {exc.reason}"
+                raise BackboneError(msg) from exc
+            except urllib.error.URLError as exc:
+                # urlopen wraps a failure to connect (refused, or no answer to
+                # the handshake) as URLError: the request was never sent.
+                if attempt == self._attempts:
+                    msg = (
+                        f"policy server at {self._url} did not answer after "
+                        f"{self._attempts} connection attempts: {exc.reason}"
+                    )
+                    raise BackboneError(msg) from exc
+                _log.warning(
+                    "policy_connect_retry",
+                    url=self._url,
+                    attempt=attempt,
+                    attempts=self._attempts,
+                    reason=str(exc.reason),
+                )
+        msg = "unreachable"  # the loop either returns or raises
+        raise BackboneError(msg)
+
+    def _post_once(self, request: urllib.request.Request, timeout_s: float) -> dict[str, object]:
         try:
-            with urllib.request.urlopen(request, timeout=timeout_s) as reply:
+            with self._open(request, timeout=timeout_s) as reply:
                 return dict(json.loads(reply.read().decode("utf-8")))
-        except urllib.error.URLError as exc:
-            msg = f"policy server at {self._url} did not answer: {exc.reason}"
-            raise BackboneError(msg) from exc
+        except urllib.error.URLError:
+            raise  # a subclass of OSError; post() decides whether to retry it
         except OSError as exc:
             # A timeout while reading the reply, or a connection dropped
             # mid-answer, arrives as TimeoutError or ConnectionError rather

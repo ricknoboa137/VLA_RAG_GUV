@@ -373,3 +373,63 @@ def test_a_reply_that_never_arrives_is_a_backbone_error(
     monkeypatch.setattr("urllib.request.urlopen", fail)
     with pytest.raises(BackboneError, match="did not answer"):
         HttpTransport("http://127.0.0.1:1/act").post({}, timeout_s=0.1)
+
+
+class _Reply:
+    def __init__(self, body: bytes) -> None:
+        self._body = body
+
+    def __enter__(self) -> _Reply:
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        return None
+
+    def read(self) -> bytes:
+        return self._body
+
+
+def test_a_failed_connection_is_retried_and_the_same_request_resent() -> None:
+    import urllib.error
+
+    sent: list[bytes] = []
+
+    def opener(request: Any, timeout: float) -> _Reply:
+        sent.append(request.data)
+        if len(sent) < 3:
+            raise urllib.error.URLError(TimeoutError("connect timed out"))
+        return _Reply(b'{"ok": 1}')
+
+    reply = HttpTransport("http://127.0.0.1:8000/act", attempts=3, opener=opener).post(
+        {"seed": 7}, timeout_s=1.0
+    )
+    assert reply == {"ok": 1}
+    assert len(sent) == 3 and len(set(sent)) == 1
+
+
+def test_connection_retries_are_bounded() -> None:
+    import urllib.error
+
+    calls = 0
+
+    def opener(request: Any, timeout: float) -> _Reply:
+        nonlocal calls
+        calls += 1
+        raise urllib.error.URLError(ConnectionRefusedError("refused"))
+
+    with pytest.raises(BackboneError, match="after 2 connection attempts"):
+        HttpTransport("http://127.0.0.1:8000/act", attempts=2, opener=opener).post({}, 1.0)
+    assert calls == 2
+
+
+def test_a_request_that_reached_the_server_is_not_retried() -> None:
+    calls = 0
+
+    def opener(request: Any, timeout: float) -> _Reply:
+        nonlocal calls
+        calls += 1
+        raise TimeoutError("read timed out")
+
+    with pytest.raises(BackboneError):
+        HttpTransport("http://127.0.0.1:8000/act", attempts=3, opener=opener).post({}, 1.0)
+    assert calls == 1

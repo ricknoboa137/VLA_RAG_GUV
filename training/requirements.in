@@ -9,3 +9,5 @@ torch==2.10.0+cu128
 torchvision==0.25.0+cu128
 torchcodec==0.10.0
 lerobot[smolvla,training]==0.6.1
+# scripts/policy_server.py imports carma.backbone, whose remote client logs with structlog.
+structlog==24.4.0

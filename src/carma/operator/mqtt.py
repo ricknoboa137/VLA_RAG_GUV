@@ -98,6 +98,7 @@ class MqttOperator:
     ) -> None:
         try:
             import paho.mqtt.client as mqtt
+            from paho.mqtt.enums import CallbackAPIVersion
         except ImportError as exc:
             msg = "the mqtt operator needs paho-mqtt: pip install -e '.[stream]'"
             raise OperatorUnavailableError(msg) from exc
@@ -107,7 +108,7 @@ class MqttOperator:
         self._queue: queue.Queue[_PendingCorrection] = queue.Queue()
         self._connected = threading.Event()
         self._client: Any = mqtt.Client(
-            mqtt.CallbackAPIVersion.VERSION2,
+            CallbackAPIVersion.VERSION2,
             client_id=client_id or f"carma-operator-{operator_id}",
             clean_session=True,
         )
