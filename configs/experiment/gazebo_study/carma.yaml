@@ -1,0 +1,77 @@
+# Gazebo study, condition carma (configs/condition/carma.yaml).
+# The five files in this folder are byte-identical except for `condition`,
+# `arbiter` and `hygiene` (docs/experiments.md). Backbone: the fine-tuned
+# navigation SmolVLA, served by
+#   python scripts/policy_server.py --policy navvla --checkpoint <pretrained_model>
+# World: lockstep:=true at stage VEGETATIVE (docs/simulation.md).
+name: gazebo_study
+condition: carma
+seed: 0
+episodes: 4
+
+# Down the clear alley of the row-crop world, from a jittered start (see
+# carma.runtime.episodes.row_alley_episodes).
+route:
+  kind: row_alley
+  params:
+    min_length_m: 10.0
+    max_length_m: 14.0
+    max_steps: 350
+
+backbone:
+  kind: remote
+  params:
+    url: http://127.0.0.1:8000/act
+    timeout_s: 60.0
+    # Four sampled action chunks per step; their spread is the uncertainty the
+    # arbiter prices. One sample would report uncertainty 1.0 at every step.
+    samples: 4
+    send_depth: false
+    send_right: false
+
+embedder:
+  kind: hashing
+  params:
+    dim: 256
+
+store:
+  kind: in_memory
+
+retriever:
+  kind: similarity
+  params:
+    min_score: 0.15
+
+hygiene:
+  kind: stage_decay
+
+cost_model:
+  kind: linear
+  params:
+    recovery_s: 45.0
+    retrieval_s: 0.12
+    operator_s: 20.0
+    retrieval_efficacy: 0.6
+    ask_efficacy: 0.95
+
+arbiter:
+  kind: cost_aware
+  params:
+    probe_k: 3
+    ask_budget: 10
+
+operator:
+  kind: scripted
+  params:
+    mean_latency_s: 18.0
+    correction_rate: 0.08
+    seed: 0
+
+sim:
+  kind: gazebo
+  params:
+    control_hz: 10.0
+    stage: VEGETATIVE
+    timeout_s: 120.0
+    bridge_url: 127.0.0.1
+    bridge_port: 5555

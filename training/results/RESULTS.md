@@ -14,6 +14,65 @@ allocator cap (see `training/README.md`, the Windows spill trap).
 
 ---
 
+## 2026-11-13: navigation SmolVLA in the Gazebo alley, scored on the true pose
+
+Folder: [`2026-11-13_nav-alley-truepose/`](2026-11-13_nav-alley-truepose/)
+
+**Supersedes 2026-11-08.** That entry scored on wheel odometry, which kept
+counting while the robot was stuck against a row, and every episode started at
+the origin whatever its spec said. Here the bridge reports Gazebo's
+ground-truth pose, places the robot at the spec's start (refused if more than
+0.15 m off), and ends an episode as a failure on a plan-view collision with
+any world shape (`docs/simulation.md`, "Pose and collisions").
+
+**Data.** 40 scripted-expert episodes recorded on the true pose (seed 100,
+start offset up to 0.25 m and 0.2 rad, small steering disturbances), 8435
+frames, none collided. Split `training/splits/nav_alley_gt_seed0.json`:
+32 train, 4 calibration, 4 test. Converted with `--stop-hold 20`.
+
+**Training.** SmolVLA from `lerobot/smolvla_base`, 3000 steps, batch 16,
+chunk 10, front camera only (two empty camera slots). Checkpoint
+`runs/training/nav_gt/checkpoints/003000`.
+
+**Closed loop in Gazebo** (`configs/experiment/gazebo_alley_navvla.yaml`,
+4 episodes):
+
+| Episode | Goal | Stopped at x | Max abs y | Collided | Success |
+|---|---|---|---|---|---|
+| row-000 | 13 m | 11.50 | 0.16 | no | yes |
+| row-001 | 10 m | 8.53 | 0.19 | no | yes |
+| row-002 | 12 m | 10.55 | 0.12 | no | yes |
+| row-003 | 14 m | 12.55 | 0.16 | no | yes |
+
+The policy stops about 1.45 m short of every goal, inside the 1.5 m success
+radius by about 5 cm. Count these as "reached the success radius", not
+"stopped at the goal". The max abs y values above 0.165 m occur before the
+rows begin.
+
+**Five conditions** (`configs/experiment/gazebo_study/`, 4 episodes each,
+same backbone, routes and seeds):
+
+| Condition | Config hash | Success | Collision | Nav error m | Retrieval rate | Queries/100 m |
+|---|---|---|---|---|---|---|
+| no_memory | `0dbb881a314c7285` | 1.00 | 0.00 | 1.468 | 0.00 | 0 |
+| unconditional_retrieval | `d068d1956e88796d` | 1.00 | 0.00 | 1.485 | 1.00 | 0 |
+| ask_only | `fb5d19c4d855c7c0` | 1.00 | 0.00 | 1.468 | 0.00 | 0 |
+| carma | `d2d41482546158d0` | 1.00 | 0.00 | 1.482 | 0.47 | 0 |
+| carma_no_hygiene | `21e602c4d26b66f9` | 1.00 | 0.00 | 1.482 | 0.47 | 0 |
+
+
+**What this does not show.** The conditions do not separate. The navigation
+policy ignores retrieved context and its uncertainty stays near 0.01, so
+`ask_only` and `carma` never ask. This is a floor measurement only.
+
+**Caveats.** All runs were made from a dirty tree on top of `927d7c5`, so the
+manifests cannot name an exact commit; rerun from a clean commit before
+citing. The policy server twice failed to answer within 60 s mid-run (one
+single-condition evaluation, one `ask_only` run); both runs were discarded
+and repeated whole, and the cause is not yet found.
+
+---
+
 ## 2026-10-22: SmolVLA against X-VLA on held-out SO-101 episodes (fair benchmark)
 
 Folder: [`2026-10-22_arm-benchmark/`](2026-10-22_arm-benchmark/)
@@ -265,7 +324,16 @@ expert-only recipe (batch 24) and with the VLM language layers trained
 (batch 16). Throughput, not memory, is the limit: about 12 samples/s, so
 20 000 steps at batch 24 take about 11 hours.
 
-## 2026-11-08 — navigation SmolVLA in the Gazebo alley
+## 2026-11-08 — navigation SmolVLA in the Gazebo alley (INVALID, see 2026-11-13)
+
+> **Invalid.** Every number in this entry was scored on wheel odometry, not on
+> the robot's true pose, and every episode actually started at the origin. The
+> odometry heading drifted, the robot drove into crop rows while the reported
+> pose said it was centred, and the wheels kept counting distance against the
+> row, so crashed episodes scored as successes. The 40 demonstrations were
+> recorded under the same fault and the models were trained on them. Kept for
+> the record; do not cite. Cause and fix: `docs/simulation.md`, "Pose and
+> collisions".
 
 SmolVLA fine-tuned on 40 expert demonstrations (`scripts/record_nav_demos.py`,
 seed 100, 8,429 frames, steering-burst disturbances) through the lockstep Gazebo
