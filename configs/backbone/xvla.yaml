@@ -1,0 +1,21 @@
+# X-VLA 0.9B, fine-tuned for this robot. Copy this block into an experiment
+# file. Needs the vla extra and a checkpoint in assets/; see docs/backbones.md.
+#
+# The released base checkpoint (scripts/fetch_models.py xvla-base) was trained
+# on manipulators. Pointing model_dir at it exercises the pipeline and measures
+# latency, and produces no meaningful driving.
+backbone:
+  kind: xvla
+  params:
+    model_dir: assets/xvla-nav
+    # Soft prompt for this robot and its stereo camera. Must be the id the
+    # checkpoint was fine-tuned with.
+    domain_id: 20
+    denoising_steps: 10
+    device: cuda
+    max_linear: 0.6        # metres per second
+    max_angular: 0.8       # radians per second
+    num_samples: 8
+    replan_every: 5        # control steps
+    dispersion_full: 1.0   # uncalibrated; fit on held-out data
+    stop_threshold: 0.5

@@ -53,6 +53,25 @@ voice = [
   "huggingface-hub==0.36.0",
   "sounddevice==0.5.1",
 ]
+# Learned navigation backbones (carma.backbone.xvla). The default PyPI torch
+# wheel is CPU-only on Windows; docs/backbones.md covers the CUDA build.
+vla = [
+  "torch==2.6.0",
+  # Transitive via timm; pinned because it must match the torch release.
+  "torchvision==0.21.0",
+  # X-VLA's checkpoint code requires transformers<=4.51.3.
+  "transformers==4.51.3",
+  "safetensors==0.4.5",
+  "einops==0.8.1",
+  "timm==1.0.12",
+  "pillow==11.1.0",
+  "huggingface-hub==0.36.0",
+  # Imported at module scope by the X-VLA checkpoint code for its optional
+  # HTTP server, which this project never starts.
+  "fastapi==0.115.6",
+  "uvicorn==0.34.3",
+  "json-numpy==2.1.0",
+]
 dev = [
   "pytest==8.3.3",
   "pytest-cov==5.0.0",
@@ -91,7 +110,16 @@ disallow_any_generics = true
 plugins = []
 
 [[tool.mypy.overrides]]
-module = ["cv2.*", "faiss.*", "sentence_transformers.*", "scipy.*", "onnxruntime.*"]
+module = [
+  "cv2.*",
+  "faiss.*",
+  "sentence_transformers.*",
+  "scipy.*",
+  "onnxruntime.*",
+  "torch.*",
+  "transformers.*",
+  "PIL.*",
+]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

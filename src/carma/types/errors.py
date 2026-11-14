@@ -34,5 +34,9 @@ class AnalyzerError(CarmaError):
     """A scene analyzer could not be loaded or could not process an image."""
 
 
+class BackboneError(CarmaError):
+    """A navigation backbone produced output that cannot be turned into an action."""
+
+
 class DeterminismError(CarmaError):
     """A component behaved non-deterministically under a fixed seed."""

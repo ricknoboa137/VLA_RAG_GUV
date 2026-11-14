@@ -32,6 +32,12 @@ no-memory baseline honest. A baseline obtained by disabling a branch inside the
 policy is a different system from the policy; a baseline obtained by handing the
 runtime a different arbiter is the same system with one component swapped.
 
+## Backbones
+
+The harness default is a model-free heuristic. Learned policies that denoise a
+chunk of actions enter through `carma/backbone/chunked.py`; X-VLA is the first.
+See `docs/backbones.md`.
+
 ## Composition root
 
 `carma.config.build` is the only place a concrete class is instantiated from a
