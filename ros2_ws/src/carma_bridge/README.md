@@ -26,7 +26,35 @@ before an `Observation` is emitted. The slop is a parameter; record it in the
 run manifest when the adapter lands, because a loose slop silently degrades
 every pose-conditioned memory entry.
 
+## Who publishes the robot side
+
+In simulation, `carma_sim` does. Its UGV model publishes on the Gazebo topics
+named above and `carma_sim/config/bridge.yaml` maps them one-to-one onto these
+ROS names — nothing is renamed, so a missing topic is a typo rather than a
+remap to chase. `ros2 launch carma_sim row_crop.launch.py` brings that side up
+headless and it is live now: all four robot→bridge topics publish at their
+nominal rates (stereo and depth 15 Hz, odometry 30 Hz) and `/carma/cmd_vel`
+moves the robot. See `ros2_ws/src/carma_sim/README.md` for the sensor geometry
+the images and depth come from.
+
+One wrinkle belongs to simulation alone: Gazebo's renderer cannot produce BGR,
+so the stereo pair arrives as `rgb8` and `carma_sim`'s `bgr_relay` swaps the
+channels onto the `bgr8` topics named above. The contract is unchanged — the
+topics here carry `bgr8` either way — and nothing on this side needs to know.
+
+On the robot, the camera driver and the base controller publish the same
+topics. That is the point of naming them here rather than in either package.
+
 ## Status
 
-Node skeleton only. Implement against the contract above; until then run
-experiments with `sim.kind=synthetic`.
+Implemented: `bridge_node` serves `GazeboAdapter` in lockstep (wire format in
+`carma_bridge/protocol.py`, behaviour and the replay check in
+`docs/simulation.md`). It needs the world launched with `lockstep:=true`, which
+also bridges Gazebo's world-control service. The `/carma/observation` and
+`/carma/reset` entries in the table above are superseded by the TCP protocol:
+the library never subscribes to ROS, and a reset is a request, not a service.
+
+Synchronisation differs from the first draft of this contract in one respect:
+left image, right image and depth go through the approximate-time policy, but
+the pose is the odometry message at the end of the step, selected by stamp, so
+it is exact for the returned time instead of up to a camera period old.

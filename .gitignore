@@ -3,6 +3,11 @@
 # Assets/ folders under vr/unity/.
 /assets/
 
+# written reports stay on the author's machine; the repository holds the
+# software and the measurement record (training/results/) it depends on
+/REPORTS/
+/reports/
+
 # local tool configuration with machine-specific paths
 /.mcp.json
 runs/

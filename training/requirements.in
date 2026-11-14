@@ -1,0 +1,11 @@
+# Top-level requirements of the carma-train environment, exactly pinned.
+# The full resolution is requirements-win64.lock; install from that, not this.
+# Python 3.12 and ffmpeg come from conda-forge (conda-win64.lock).
+#
+# torch 2.10 + torchcodec 0.10 is a matched pair; lerobot 0.6.1 accepts
+# torch >=2.7,<2.12 and needs torchcodec >=0.7 on Windows.
+--extra-index-url https://download.pytorch.org/whl/cu128
+torch==2.10.0+cu128
+torchvision==0.25.0+cu128
+torchcodec==0.10.0
+lerobot[smolvla,training]==0.6.1

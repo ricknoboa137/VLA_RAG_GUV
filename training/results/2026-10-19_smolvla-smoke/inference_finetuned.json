@@ -1,0 +1,24 @@
+{
+  "policy": "runs/training/smoke300/checkpoints/000300/pretrained_model",
+  "dtype": "bfloat16",
+  "cameras": 3,
+  "state_dim": 6,
+  "action_dim": 6,
+  "chunk_shape": [
+    1,
+    50,
+    6
+  ],
+  "finite": true,
+  "params_m": 450.0,
+  "load_s": 51.7,
+  "latency_ms_median": 541.9,
+  "latency_ms_min": 412.8,
+  "latency_ms_max": 726.4,
+  "denoising_steps": 10,
+  "peak_vram_allocated_gib": 0.91,
+  "peak_vram_reserved_gib": 1.27,
+  "gpu": "NVIDIA RTX 2000 Ada Generation Laptop GPU",
+  "torch": "2.10.0+cu128",
+  "platform": "Windows-11-10.0.26300-SP0"
+}

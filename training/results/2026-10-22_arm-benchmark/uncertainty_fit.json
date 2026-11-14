@@ -1,0 +1,26 @@
+{
+  "predictions": "training/results/2026-10-22_arm-benchmark/calibration_predictions.jsonl",
+  "tolerance_rad": 0.06776438611049795,
+  "event": "chunk mean joint error > tolerance_rad",
+  "map": "u = sigmoid(a * ln(spread) + b)",
+  "models": {
+    "smolvla": {
+      "a": 2.967458216845339,
+      "b": 14.337797284711977,
+      "frames": 413,
+      "exceeded_rate": 0.4552058111380145,
+      "mean_predicted": 0.4552058111380142,
+      "brier": 0.19703308066035227,
+      "brier_constant": 0.24799348064419677
+    },
+    "xvla": {
+      "a": 0.806809842237391,
+      "b": 5.873641299781433,
+      "frames": 413,
+      "exceeded_rate": 0.5447941888619855,
+      "mean_predicted": 0.5447941888619854,
+      "brier": 0.2173374660998231,
+      "brier_constant": 0.24799348064419677
+    }
+  }
+}

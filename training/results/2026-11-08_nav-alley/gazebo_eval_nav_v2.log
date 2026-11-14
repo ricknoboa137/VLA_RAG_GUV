@@ -1,0 +1,6 @@
+wall s: 1289
+success_rate 0.75 nav_error_m 1.506 spl 0.75
+row-000 drive 13 metres down the row and stop | start y -0.12 yaw -0.18 | steps 234 final x 11.5 y -0.006 max|y| 0.16 success True
+row-001 drive 10 metres down the row and stop | start y 0.16 yaw 0.17 | steps 174 final x 8.51 y -0.0 max|y| 0.19 success True
+row-002 drive 12 metres down the row and stop | start y 0.11 yaw 0.02 | steps 214 final x 10.51 y -0.006 max|y| 0.12 success True
+row-003 drive 14 metres down the row and stop | start y 0.16 yaw -0.2 | steps 253 final x 12.46 y 0.001 max|y| 0.16 success False

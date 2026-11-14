@@ -1,0 +1,40 @@
+# X-VLA fine-tuned from lerobot/xvla-base on SO-101 "pick the red cube" (top +
+# gripper cameras), joint action space ("auto"), by the same author and on the
+# same dataset as svla_so101_red_cube.yaml, so the two compare like for like.
+# Served by: python scripts/policy_server.py --policy xvla
+# Not an experiment config: never part of a config hash. See docs/arm-policies.md.
+kind: xvla
+checkpoint: assets/xvla_so101_red_cube
+model_id: whosricky/xvla-so101-pick-red-cube-2cam
+model_revision: 7a007f64dd5910dd5cde76c8d31d9d7f7e6c0778
+# Stored and trained in bf16.
+dtype: bfloat16
+fps: 30.0
+horizon: 30
+# Model camera slot -> robot camera, as in training (top -> image,
+# gripper -> image2). The unused empty_camera_0 slot is left out and masked.
+cameras:
+  observation.images.image2: image
+  observation.images.image: world_left
+# LeRobot's SO-101 units -> the arm's URDF radians (so101_new_calib.urdf, the
+# convention the Gazebo model uses). The dataset's values saturate at -100 and
+# +100, so it was recorded with use_degrees=false: body joints in range_m100_100,
+# the ends of each calibrated range, gripper in range_0_100. Mapped onto the URDF
+# joint limits, on the assumption that the calibrated range spans them with
+# zero at the middle, as the new calibration intends. Approximate, and the
+# same for both models; check each joint against a calibrated real arm before
+# trusting an angle.
+joints:
+  shoulder_pan:  {model: [-100.0, 100.0], rad: [-1.91986, 1.91986]}
+  shoulder_lift: {model: [-100.0, 100.0], rad: [-1.74533, 1.74533]}
+  elbow_flex:    {model: [-100.0, 100.0], rad: [-1.69, 1.69]}
+  wrist_flex:    {model: [-100.0, 100.0], rad: [-1.65806, 1.65806]}
+  wrist_roll:    {model: [-100.0, 100.0], rad: [-2.74385, 2.84121]}
+  gripper:       {model: [0.0, 100.0], rad: [-0.174533, 1.74533]}
+# Spread of the sampled chunks -> uncertainty. Not calibrated: no held-out
+# episodes exist for this checkpoint (it was trained on the whole dataset), so
+# the numbers order observations but are not probabilities and are not
+# comparable with the other model's. See docs/arm-policies.md.
+uncertainty:
+  method: uncalibrated
+  scale: 0.02

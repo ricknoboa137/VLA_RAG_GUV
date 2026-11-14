@@ -41,7 +41,10 @@ services:
     <<: *ros
     # MQTT_CAMERA=true takes camera frames from the broker instead of a driver.
     # MQTT_HOST: the host's broker by default; "broker" for the local-broker profile.
-    command: ros2 launch carma_vision vision.launch.py mqtt_host:=${MQTT_HOST:-host.docker.internal} mqtt_camera:=${MQTT_CAMERA:-false}
+    # ARM_CAMERA=true adds the stereo camera on the arm (carma/arm_source/* ->
+    # /carma/arm/stereo/*). VR_TOPIC=MqttVidFeed sends the world camera to the
+    # Quest client from here, so one USB camera feeds headset, viewer and VLA.
+    command: ros2 launch carma_vision vision.launch.py mqtt_host:=${MQTT_HOST:-host.docker.internal} mqtt_camera:=${MQTT_CAMERA:-false} arm_camera:=${ARM_CAMERA:-false} vr_topic:=${VR_TOPIC:-none}
     volumes:
       # Edit analyzer configs and drop ONNX models in without rebuilding.
       - ../configs:/opt/carma/configs:ro
@@ -69,10 +72,29 @@ services:
       - ./viewer:/usr/share/nginx/html:ro
     restart: unless-stopped
 
+  # Live VLA pipeline: both stereo cameras and operator speech into the policy
+  # server (scripts/policy_server.py --host 0.0.0.0 on the host). Publishes
+  # /carma/vla/action; drives only with VLA_DRIVE=true, moves the arm only with VLA_ARM=true. See docs/vla-integration.md.
+  vla:
+    <<: *ros
+    profiles: [vla]
+    command: ros2 launch carma_vla vla.launch.py policy_url:=${POLICY_URL:-http://host.docker.internal:8000/act} primary:=${VLA_PRIMARY:-arm} drive:=${VLA_DRIVE:-false} arm:=${VLA_ARM:-false}
+    restart: "no"
+
+  # Serves carma.sim.gazebo.GazeboAdapter on TCP 5555. Needs ros_gz_interfaces
+  # (world control), which only the sim image carries. Run it with the sim
+  # started as LOCKSTEP=true, so the world is paused and stepped by this node.
   bridge:
     <<: *ros
+    image: carma-ros-sim:jazzy
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: sim
     profiles: [bridge]
     command: ros2 run carma_bridge bridge_node
+    ports:
+      - "${CARMA_BRIDGE_PORT:-5555}:5555"
     restart: "no"
 
   sim:
@@ -83,7 +105,8 @@ services:
       dockerfile: docker/Dockerfile
       target: sim
     profiles: [sim]
-    command: ros2 launch carma_sim row_crop.launch.py
+    # LOCKSTEP=true starts the world paused for carma_bridge (reproducible runs).
+    command: ros2 launch carma_sim row_crop.launch.py lockstep:=${LOCKSTEP:-false}
     restart: "no"
 
   shell:
@@ -96,6 +119,31 @@ services:
     volumes:
       - ../configs:/opt/carma/configs:ro
       - ../ros2_ws/src:/ros2_ws/src
+
+  # The Python library alone, no ROS. What a colleague needs to run an
+  # experiment: docker compose -f docker/compose.yaml run --rm lib   #   carma run --config configs/experiment/smoke.yaml --seed 0
+  lib:
+    image: carma-lib:0.1.0
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: lib
+    volumes:
+      # Runs land on the host so results survive the container.
+      - ../runs:/opt/carma/runs
+      - ../configs:/opt/carma/configs:ro
+      - ../assets:/opt/carma/assets:ro
+    restart: "no"
+
+  # The library plus the gate tools. "docker compose run --rm check" runs the
+  # same lint, types, tests and pin check a colleague runs locally.
+  check:
+    image: carma-dev:0.1.0
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: dev
+    restart: "no"
 
   # Stereo camera driver: add once the camera model is chosen. It must publish
   # bgr8 images on the topics named in carma_vision/config/vision.yaml.

@@ -4,8 +4,9 @@ A test and bridging source: it lets a camera on another machine (a webcam on a
 Windows PC via ``scripts/webcam_mqtt.py``, or an existing MQTT camera project)
 drive the full pipeline as if it were the robot's stereo camera.
 
-Reads ``<p>/source/frame`` (JPEG) and the retained ``<p>/source/meta``
-(``{"layout": "sbs_lr" | "mono"}``). A side-by-side frame is split into left
+Reads ``<p>/<source>/frame`` (JPEG) and the retained ``<p>/<source>/meta``
+(``{"layout": "sbs_lr" | "mono"}``). ``source`` is ``source`` for the world
+camera and ``arm_source`` for the camera on the arm; one node runs per camera. A side-by-side frame is split into left
 and right; a mono frame is published to both eyes when ``mono_as_stereo`` is
 true, so the stereo stream path can be exercised with one camera. Both images
 carry the same timestamp, so downstream synchronisation is exact.
@@ -34,6 +35,7 @@ class MqttCameraNode(Node):
         self.declare_parameter("mqtt_host", "broker")
         self.declare_parameter("mqtt_port", 1883)
         self.declare_parameter("mqtt_prefix", "carma")
+        self.declare_parameter("source", "source")
         self.declare_parameter("left_topic", "/carma/stereo/left/image_raw")
         self.declare_parameter("right_topic", "/carma/stereo/right/image_raw")
         self.declare_parameter("frame_id", "camera")
@@ -41,6 +43,7 @@ class MqttCameraNode(Node):
 
         param = self.get_parameter
         prefix = param("mqtt_prefix").value
+        source = param("source").value
         self._frame_id = param("frame_id").value
         self._mono_as_stereo = bool(param("mono_as_stereo").value)
         self._layout = "mono"
@@ -52,9 +55,11 @@ class MqttCameraNode(Node):
             Image, param("right_topic").value, qos_profile_sensor_data
         )
 
-        self._mqtt = MqttLink(param("mqtt_host").value, param("mqtt_port").value, "carma-mqtt-cam")
-        self._mqtt.subscribe(f"{prefix}/source/meta", self._on_meta, qos=1)
-        self._mqtt.subscribe(f"{prefix}/source/frame", self._on_frame)
+        self._mqtt = MqttLink(
+            param("mqtt_host").value, param("mqtt_port").value, f"carma-mqtt-cam-{source}"
+        )
+        self._mqtt.subscribe(f"{prefix}/{source}/meta", self._on_meta, qos=1)
+        self._mqtt.subscribe(f"{prefix}/{source}/frame", self._on_frame)
         self.create_timer(5.0, self._report)
 
     def _on_meta(self, _topic: str, payload: bytes) -> None:

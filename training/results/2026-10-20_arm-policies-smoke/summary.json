@@ -1,0 +1,81 @@
+{
+  "what": "open-loop joint error against recorded actions; not task success",
+  "trained_on_these_episodes": true,
+  "dataset": "assets/so101_red_cube",
+  "episodes": [
+    0,
+    45,
+    90,
+    135,
+    181
+  ],
+  "stride": 60,
+  "horizon": 25,
+  "samples": 4,
+  "seed": 0,
+  "cameras": {
+    "top": "world_left",
+    "gripper": "image"
+  },
+  "units_spec": "configs/arm_policy/svla_so101_red_cube.yaml",
+  "commit": "df60cc4c83986de65b4139c92fe45fd493b9d1fd",
+  "dirty": false,
+  "platform": "Windows-11-10.0.26300-SP0",
+  "wall_s": 79.9,
+  "models": {
+    "smolvla": {
+      "model_id": "whosricky/svla-so101-pick-red-cube-2cam",
+      "model_revision": "5302eecfe373a3225642c3c9c94e385d6e32c139",
+      "frames": 31,
+      "mean_error_rad": 0.048873519028215434,
+      "mean_first_step_error_rad": 0.02335714860052526,
+      "per_joint_error_rad": {
+        "shoulder_pan": 0.03430259188691329,
+        "shoulder_lift": 0.08419933186450555,
+        "elbow_flex": 0.07899070606125183,
+        "wrist_flex": 0.02748956597159633,
+        "wrist_roll": 0.025951156795490395,
+        "gripper": 0.04230776158953522
+      },
+      "uncertainty_error_rank_correlation": 0.530241935483871,
+      "uncertainty_method": "chunk_spread/uncalibrated",
+      "inference_s": {
+        "mean": 0.6693548387115551,
+        "p50": 0.6410000000032596,
+        "p95": 0.8130000000091968
+      },
+      "round_trip_s": {
+        "mean": 0.6810000000001427,
+        "p50": 0.6559999999881256,
+        "p95": 0.8130000000091968
+      }
+    },
+    "xvla": {
+      "model_id": "whosricky/xvla-so101-pick-red-cube-2cam",
+      "model_revision": "7a007f64dd5910dd5cde76c8d31d9d7f7e6c0778",
+      "frames": 31,
+      "mean_error_rad": 0.08171897964567852,
+      "mean_first_step_error_rad": 0.048824996645839024,
+      "per_joint_error_rad": {
+        "shoulder_pan": 0.048397293444303026,
+        "shoulder_lift": 0.16777113352983783,
+        "elbow_flex": 0.1529297582277874,
+        "wrist_flex": 0.0499947327943196,
+        "wrist_roll": 0.021345906611472242,
+        "gripper": 0.049875053266351
+      },
+      "uncertainty_error_rank_correlation": 0.3479838709677419,
+      "uncertainty_method": "chunk_spread/uncalibrated",
+      "inference_s": {
+        "mean": 0.5373870967755905,
+        "p50": 0.5160000000032596,
+        "p95": 0.5320000000065193
+      },
+      "round_trip_s": {
+        "mean": 0.5579354838700965,
+        "p50": 0.5460000000020955,
+        "p95": 0.5470000000204891
+      }
+    }
+  }
+}

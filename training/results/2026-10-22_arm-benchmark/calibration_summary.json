@@ -1,0 +1,94 @@
+{
+  "what": "open-loop joint error against recorded actions; not task success",
+  "trained_on_these_episodes": false,
+  "dataset": "assets/so101_red_cube",
+  "episodes": [
+    0,
+    5,
+    42,
+    54,
+    68,
+    70,
+    90,
+    97,
+    99,
+    100,
+    112,
+    139,
+    144,
+    145,
+    164,
+    167,
+    171,
+    180
+  ],
+  "stride": 15,
+  "horizon": 25,
+  "samples": 4,
+  "seed": 0,
+  "cameras": {
+    "top": "world_left",
+    "gripper": "image"
+  },
+  "units_spec": "configs/arm_policy/smolvla_so101_red_cube_seed0.yaml",
+  "commit": "d549069caaee8541e4e80bff6e79e572be29af5d",
+  "dirty": true,
+  "platform": "Windows-11-10.0.26300-SP0",
+  "wall_s": 777.8,
+  "models": {
+    "smolvla": {
+      "model_id": "local/smolvla-so101-red-cube-seed0",
+      "model_revision": "d549069caaee8541e4e80bff6e79e572be29af5d",
+      "frames": 413,
+      "mean_error_rad": 0.07705076134854656,
+      "mean_first_step_error_rad": 0.03231975122991275,
+      "per_joint_error_rad": {
+        "shoulder_pan": 0.0483346509428892,
+        "shoulder_lift": 0.14088057610593147,
+        "elbow_flex": 0.1300116616975986,
+        "wrist_flex": 0.034639134897979394,
+        "wrist_roll": 0.03704810709904187,
+        "gripper": 0.07139043734783884
+      },
+      "uncertainty_error_rank_correlation": 0.5807196192683884,
+      "uncertainty_method": "chunk_spread/uncalibrated",
+      "inference_s": {
+        "mean": 0.9635907990304634,
+        "p50": 0.9370000000344589,
+        "p95": 1.1399999999790453
+      },
+      "round_trip_s": {
+        "mean": 0.9802324455197603,
+        "p50": 0.9529999999795109,
+        "p95": 1.155999999982305
+      }
+    },
+    "xvla": {
+      "model_id": "local/xvla-so101-red-cube-seed0",
+      "model_revision": "d549069caaee8541e4e80bff6e79e572be29af5d",
+      "frames": 413,
+      "mean_error_rad": 0.08670387687125858,
+      "mean_first_step_error_rad": 0.05125065632520713,
+      "per_joint_error_rad": {
+        "shoulder_pan": 0.04595021984423942,
+        "shoulder_lift": 0.16777910199704055,
+        "elbow_flex": 0.14973950164740293,
+        "wrist_flex": 0.049402824652269035,
+        "wrist_roll": 0.032094328533240145,
+        "gripper": 0.07525728455335945
+      },
+      "uncertainty_error_rank_correlation": 0.47715872663823244,
+      "uncertainty_method": "chunk_spread/uncalibrated",
+      "inference_s": {
+        "mean": 0.6353753026645037,
+        "p50": 0.5939999999827705,
+        "p95": 0.9034000000101507
+      },
+      "round_trip_s": {
+        "mean": 0.6474188861997232,
+        "p50": 0.6089999999967404,
+        "p95": 0.9094000000157383
+      }
+    }
+  }
+}

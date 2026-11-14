@@ -1,12 +1,16 @@
 # ROS 2 workspace
 
-Three packages, kept out of `src/carma/` on purpose.
+Four packages, kept out of `src/carma/` on purpose.
 
 - `carma_bridge` — the ROS 2 node that mediates between the `carma` library and
-  a running simulator or robot.
-- `carma_vision` — live scene analysis (`analysis_node`) and camera streaming
-  over MQTT (`stream_node`). See `docs/analyzers.md` and `docs/streaming.md`.
-- `carma_sim` — Gazebo Harmonic worlds and the UGV description.
+  a running simulator or robot (skeleton; its topic contract is in its README).
+- `carma_vision` — the MQTT camera source (`mqtt_camera_node`), live scene
+  analysis (`analysis_node`) and camera streaming over MQTT (`stream_node`).
+  See `docs/analyzers.md` and `docs/streaming.md`.
+- `carma_voice` — offline speech-to-text for operator speech (`stt_node`).
+  See `docs/speech.md`.
+- `carma_sim` — the Gazebo Harmonic row-crop world, the UGV model and its
+  launch file.
 
 The easiest way to get a working ROS 2 environment on any machine is the
 container in `docker/`; see `docker/README.md`.

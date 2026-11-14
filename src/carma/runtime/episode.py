@@ -9,6 +9,7 @@ is identical across all five conditions. If a change to this file needs an
 from __future__ import annotations
 
 import time
+from dataclasses import replace
 
 import numpy as np
 import structlog
@@ -59,7 +60,9 @@ def run_episode(
     _maybe_reset(assembly.backbone)
     _maybe_reset(assembly.arbiter)
 
-    obs: Observation = assembly.sim.reset(seed=seed)
+    obs: Observation = replace(
+        assembly.sim.reset(seed=seed, start=spec.start), instruction=spec.instruction
+    )
     steps: list[StepRecord] = []
     path_length = 0.0
     previous_pose = obs.pose
@@ -124,10 +127,11 @@ def run_episode(
             uncertainty=uncertainty,
         )
 
-        if action.stop or obs.pose.distance_to(spec.goal) <= spec.success_radius:
+        if obs.collided or action.stop or obs.pose.distance_to(spec.goal) <= spec.success_radius:
             break
 
-        obs = assembly.sim.step(action)
+        # The episode, not the simulator, owns the instruction in force.
+        obs = replace(assembly.sim.step(action), instruction=spec.instruction)
         path_length += obs.pose.distance_to(previous_pose)
         previous_pose = obs.pose
 
@@ -136,5 +140,6 @@ def run_episode(
         steps=tuple(steps),
         final_pose=obs.pose,
         path_length=path_length,
+        collided=obs.collided,
         wall_time_s=time.perf_counter() - started,
     )

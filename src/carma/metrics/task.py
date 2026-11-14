@@ -19,6 +19,17 @@ def success_rate(episodes: Sequence[EpisodeRecord]) -> float:
     return sum(1 for e in episodes if e.success) / len(episodes)
 
 
+def collision_rate(episodes: Sequence[EpisodeRecord]) -> float:
+    """Fraction of episodes that ended because the robot hit something, in ``[0, 1]``.
+
+    Reported beside the success rate: a policy can fail by stopping short or by
+    driving into the crop, and only the second damages it.
+    """
+    if not episodes:
+        return 0.0
+    return sum(1 for e in episodes if e.collided) / len(episodes)
+
+
 def navigation_error(episodes: Sequence[EpisodeRecord]) -> float:
     """Mean metres between final pose and goal, over all episodes.
 

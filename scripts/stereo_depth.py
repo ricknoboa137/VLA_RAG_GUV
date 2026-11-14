@@ -53,6 +53,20 @@ def _open(index: int, width: int | None, height: int | None) -> cv2.VideoCapture
     return cap
 
 
+def _warm_up(cap: cv2.VideoCapture, frames: int = 45, target_mean: float = 20.0) -> None:
+    """Read frames until auto-exposure settles, or ``frames`` are spent.
+
+    A USB camera opens stopped down and takes tens of frames to adapt: this one
+    reaches a mean brightness of about 115 only after roughly 40 frames, and a
+    short warm-up silently yields a black image that matches nothing. Stops
+    early once the frame is bright enough, so a well-lit scene costs nothing.
+    """
+    for _ in range(frames):
+        ok, frame = cap.read()
+        if ok and float(frame.mean()) >= target_mean:
+            return
+
+
 def main() -> int:
     """Capture one frame (or stream), and write depth and a point cloud."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
@@ -121,8 +135,8 @@ def main() -> int:
     print(f"per eye {eye_size[0]}x{eye_size[1]}")
 
     if args.calibrate_at is not None:
-        for _ in range(10):
-            ok, frame = cap.read()
+        _warm_up(cap)
+        ok, frame = cap.read()
         if not ok:
             cap.release()
             print("camera read failed during calibration", file=sys.stderr)
@@ -171,9 +185,8 @@ def main() -> int:
             cv2.destroyAllWindows()
         return 0
 
-    # Let exposure settle; the first frames off a USB camera are often dark.
-    for _ in range(10):
-        ok, frame = cap.read()
+    _warm_up(cap)
+    ok, frame = cap.read()
     cap.release()
     if not ok:
         print("camera read failed", file=sys.stderr)

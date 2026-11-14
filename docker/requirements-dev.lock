@@ -1,0 +1,31 @@
+# requirements-lib.lock plus the gate tools: ruff, mypy, pytest.
+# Same reasoning, same regeneration: make lock.
+#
+# This is what the dev image installs, so "make docker-check" runs the same
+# gates a colleague runs locally, against the same versions.
+annotated-types==0.8.0
+click==8.1.7
+coverage==7.16.2
+iniconfig==2.3.1
+markdown-it-py==4.2.0
+mdurl==0.1.2
+mypy==1.11.2
+mypy_extensions==1.1.0
+numpy==1.26.4
+opencv-python-headless==4.10.0.84
+packaging==26.3
+pluggy==1.6.0
+pydantic==2.9.2
+pydantic_core==2.23.4
+Pygments==2.21.0
+pytest==8.3.3
+pytest-cov==5.0.0
+PyYAML==6.0.2
+rich==15.0.0
+ruff==0.6.9
+scipy==1.14.1
+shellingham==1.5.4
+structlog==24.4.0
+typer==0.12.5
+types-PyYAML==6.0.12.20240917
+typing_extensions==4.16.0

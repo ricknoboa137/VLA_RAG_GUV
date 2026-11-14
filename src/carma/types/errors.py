@@ -30,12 +30,12 @@ class OperatorUnavailableError(CarmaError):
     """A query was issued but no operator channel is connected."""
 
 
+class BackboneError(CarmaError):
+    """A navigation backbone could not be reached or returned an unusable action."""
+
+
 class AnalyzerError(CarmaError):
     """A scene analyzer could not be loaded or could not process an image."""
-
-
-class BackboneError(CarmaError):
-    """A navigation backbone produced output that cannot be turned into an action."""
 
 
 class DeterminismError(CarmaError):

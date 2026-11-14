@@ -40,6 +40,10 @@ class ExperimentConfig:
             source is synthetic.
         backbone, embedder, store, retriever, hygiene, cost_model, arbiter,
         operator, sim: Component specifications.
+        route: Optional episode generator. ``None`` (the default) keeps the
+            synthetic ring of goals; ``row_alley`` sends the robot down the
+            row-crop world's clear alley. It is left out of the config hash
+            when ``None``, so adding the field did not change any existing hash.
     """
 
     name: str
@@ -55,6 +59,7 @@ class ExperimentConfig:
     arbiter: ComponentSpec
     operator: ComponentSpec
     sim: ComponentSpec
+    route: ComponentSpec | None = None
 
     def resolved(self) -> dict[str, Any]:
         """The config as a plain dictionary, with defaults applied."""
@@ -68,7 +73,11 @@ class ExperimentConfig:
         prevent aggregation. Two runs may only be pooled when their hashes
         agree; ``carma report`` enforces that and has no override flag.
         """
-        payload = {k: v for k, v in self.resolved().items() if k != "seed"}
+        payload = {
+            k: v
+            for k, v in self.resolved().items()
+            if k != "seed" and not (k == "route" and v is None)
+        }
         blob = json.dumps(payload, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(blob.encode()).hexdigest()[:16]
 
@@ -127,7 +136,7 @@ def load(path: Path) -> ExperimentConfig:
         msg = f"config {path} must contain a mapping at the top level"
         raise ConfigError(msg)
 
-    allowed = {"name", "condition", "seed", "episodes", *_COMPONENTS}
+    allowed = {"name", "condition", "seed", "episodes", "route", *_COMPONENTS}
     unknown = set(raw) - allowed
     if unknown:
         msg = f"unknown config keys: {', '.join(sorted(unknown))}"
@@ -149,11 +158,13 @@ def load(path: Path) -> ExperimentConfig:
             base = {**base, **override, "params": {**base["params"], **override.get("params", {})}}
         merged[comp] = _as_spec(base, comp)
 
+    route = _as_spec(raw["route"], "route") if raw.get("route") is not None else None
     return ExperimentConfig(
         name=str(raw["name"]),
         condition=str(raw["condition"]),
         seed=int(raw.get("seed", 0)),
         episodes=int(raw.get("episodes", 5)),
+        route=route,
         **merged,
     )
 
