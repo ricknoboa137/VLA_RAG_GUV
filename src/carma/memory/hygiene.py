@@ -50,11 +50,15 @@ class StageDecayHygiene:
         self._half_life = half_life_days
         self._dist_scale = distance_scale
 
-    def staleness(self, entry: MemoryEntry, obs: Observation) -> float:
-        """Staleness in ``[0, 1]``; 1.0 means certainly no longer applicable."""
+    def staleness(self, entry: MemoryEntry, obs: Observation, *, run_t: float) -> float:
+        """Staleness in ``[0, 1]``; 1.0 means certainly no longer applicable.
+
+        Age is ``run_t - entry.created_at``, both on the run clock in simulated
+        seconds (see ``MemoryEntry.created_at``), converted to days.
+        """
         stage_term = min(entry.stage.distance_to(obs.stage) / 3.0, 1.0)
 
-        age_days = max(obs.t - entry.created_at, 0.0) / _SECONDS_PER_DAY
+        age_days = max(run_t - entry.created_at, 0.0) / _SECONDS_PER_DAY
         age_term = 1.0 - 0.5 ** (age_days / self._half_life) if self._half_life > 0 else 0.0
 
         metres = entry.pose.distance_to(obs.pose)
@@ -68,6 +72,8 @@ class StageDecayHygiene:
         entries: tuple[MemoryEntry, ...],
         obs: Observation,
         budget: int,
+        *,
+        run_t: float,
     ) -> tuple[MemoryEntry, ...]:
         """Choose at most ``budget`` entries worth an operator confirmation.
 
@@ -75,7 +81,7 @@ class StageDecayHygiene:
         entry id so the selection is reproducible.
         """
         live = [e for e in entries if not e.invalidated]
-        scored = sorted(live, key=lambda e: (-self.staleness(e, obs), e.entry_id))
+        scored = sorted(live, key=lambda e: (-self.staleness(e, obs, run_t=run_t), e.entry_id))
         return tuple(scored[: max(budget, 0)])
 
 
@@ -87,7 +93,7 @@ class NoHygiene:
     drift handling from that of arbitration.
     """
 
-    def staleness(self, entry: MemoryEntry, obs: Observation) -> float:
+    def staleness(self, entry: MemoryEntry, obs: Observation, *, run_t: float) -> float:
         """Always 0.0."""
         return 0.0
 
@@ -96,6 +102,8 @@ class NoHygiene:
         entries: tuple[MemoryEntry, ...],
         obs: Observation,
         budget: int,
+        *,
+        run_t: float,
     ) -> tuple[MemoryEntry, ...]:
         """Always empty."""
         return ()

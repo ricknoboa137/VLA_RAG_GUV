@@ -37,6 +37,11 @@ def _episodes(cfg: ExperimentConfig) -> tuple[EpisodeSpec, ...]:
     raise ConfigError(msg)
 
 
+def episode_duration(record: EpisodeRecord) -> float:
+    """Simulated seconds an episode adds to the run clock: its last step's ``t``."""
+    return record.steps[-1].t if record.steps else 0.0
+
+
 def run_experiment(cfg: ExperimentConfig, *, run_id: str = "") -> RunResult:
     """Build the assembly, run every episode, and summarise.
 
@@ -47,13 +52,18 @@ def run_experiment(cfg: ExperimentConfig, *, run_id: str = "") -> RunResult:
     assembly = build(cfg)
     specs = _episodes(cfg)
 
-    records = tuple(
-        run_episode(spec, assembly, seed=cfg.seed + i, run_id=run_id)
-        for i, spec in enumerate(specs)
-    )
+    # The run clock: simulated seconds accumulated over the episodes so far.
+    # Each episode advances it by the ``t`` of its last step, so memory ages
+    # across episodes on simulated time, never on the wall clock.
+    records: list[EpisodeRecord] = []
+    run_t0 = 0.0
+    for i, spec in enumerate(specs):
+        record = run_episode(spec, assembly, seed=cfg.seed + i, run_id=run_id, run_t0=run_t0)
+        records.append(record)
+        run_t0 += episode_duration(record)
     assembly.sim.close()
     return RunResult(
         config_hash=cfg.hash(),
-        episodes=records,
-        metrics=summarise(records),
+        episodes=tuple(records),
+        metrics=summarise(tuple(records)),
     )

@@ -39,3 +39,20 @@ def test_seed_is_excluded_from_config_hash(smoke_config: ExperimentConfig) -> No
 
     changed = replace(smoke_config, episodes=smoke_config.episodes + 1)
     assert smoke_config.hash() != changed.hash()
+
+
+def test_run_clock_accumulates_across_episodes(smoke_config: ExperimentConfig) -> None:
+    """Episode i starts the run clock where episodes 0..i-1 left it, every run."""
+    from carma.runtime.experiment import episode_duration
+
+    def offsets() -> list[float]:
+        result = run_experiment(smoke_config)
+        acc, out = 0.0, []
+        for e in result.episodes:
+            out.append(acc)
+            acc += episode_duration(e)
+        return out
+
+    first = offsets()
+    assert first == offsets()
+    assert first == sorted(first)

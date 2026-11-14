@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import time
-import uuid
 
 from carma.registry import Registry
 from carma.types import Retriever
@@ -58,21 +57,29 @@ class SimilarityRetriever:
             latency_s=latency,
         )
 
-    def ingest(self, correction: Correction) -> MemoryEntry:
+    def ingest(self, correction: Correction, *, run_t: float) -> MemoryEntry:
         """Convert an operator correction into a stored entry.
 
         The entry text is the operator's words. Paraphrasing to strip
         task-specific detail is a deliberate later step and belongs in its own
         module, not hidden here.
+
+        Args:
+            correction: The operator's correction.
+            run_t: Run clock in simulated seconds; stored as ``created_at``.
+
+        The entry id is the store's insertion index, so ids are reproducible
+        from (config, seed, commit); a random id would reach the step records
+        through ``retrieved_ids``.
         """
         embedder, store = self._require()
         vec = embedder.embed([correction.text])[0]
         entry = MemoryEntry(
-            entry_id=uuid.uuid4().hex[:12],
+            entry_id=f"e{len(store.all()):06d}",
             text=correction.text,
             embedding=vec,
             pose=correction.observation.pose,
-            created_at=time.time(),
+            created_at=run_t,
             stage=correction.observation.stage,
             provenance=correction.operator_id,
             meta={"took_over": correction.took_over},
