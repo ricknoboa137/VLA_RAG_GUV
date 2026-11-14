@@ -102,7 +102,9 @@ def test_reset_decodes_an_observation(bridge: FakeBridge) -> None:
         "op": "reset",
         "seed": 7,
         "start": {"x": 0.0, "y": 0.0, "yaw": 0.0},
+        "pose_source": "truth",
     }
+    assert obs.true_pose is None  # this reply carries no ground truth
     assert obs.rgb.shape == (_HEIGHT, _WIDTH, 3)
     assert obs.rgb.dtype == np.uint8
     assert tuple(obs.rgb[0, 0]) == (10, 20, 30)  # BGR order survives the PNG round trip
@@ -161,6 +163,34 @@ def test_a_collision_is_carried_on_the_observation() -> None:
     finally:
         sim.close()
         fake.close()
+
+
+def test_the_estimate_drives_and_the_truth_is_kept_for_scoring() -> None:
+    def estimate(request: dict[str, Any], count: int) -> dict[str, Any]:
+        reply = _reply(t=0.1 * count)
+        reply["pose"] = {"x": 1.0, "y": 0.1, "yaw": 0.0}  # what the robot believes
+        reply["true_pose"] = {"x": 0.8, "y": 0.3, "yaw": 0.05}
+        reply["stalled"] = count == 1
+        return reply
+
+    fake = FakeBridge(estimate)
+    sim = _adapter(fake.port, pose_source="estimate")
+    try:
+        first = sim.reset(seed=0, start=_START)
+        assert fake.requests[0]["pose_source"] == "estimate"
+        assert first.pose == Pose(1.0, 0.1, 0.0)
+        assert first.true_pose == Pose(0.8, 0.3, 0.05)
+        assert first.scored_pose == Pose(0.8, 0.3, 0.05)
+        assert not first.stalled
+        assert sim.step(Action(0.5, 0.0)).stalled
+    finally:
+        sim.close()
+        fake.close()
+
+
+def test_an_unknown_pose_source_is_rejected() -> None:
+    with pytest.raises(SimulatorError, match="pose_source"):
+        GazeboAdapter(pose_source="gnss")
 
 
 def test_step_before_reset_is_an_error() -> None:

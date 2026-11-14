@@ -42,6 +42,13 @@
   gz_type_name: "gz.msgs.Image"
   direction: GZ_TO_ROS
 
+# Gyro and accelerometer at 100 Hz, the heading source for the pose estimate.
+- ros_topic_name: "/carma/imu"
+  gz_topic_name: "/carma/imu"
+  ros_type_name: "sensor_msgs/msg/Imu"
+  gz_type_name: "gz.msgs.IMU"
+  direction: GZ_TO_ROS
+
 - ros_topic_name: "/carma/odom"
   gz_topic_name: "/carma/odom"
   ros_type_name: "nav_msgs/msg/Odometry"

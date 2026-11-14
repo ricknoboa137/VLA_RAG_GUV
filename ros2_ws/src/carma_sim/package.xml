@@ -10,6 +10,7 @@
   <depend>ros_gz_bridge</depend>
   <!-- worlds/row_crop.sdf is a template; the launch file expands it by stage. -->
   <exec_depend>xacro</exec_depend>
+  <exec_depend>carma_bridge</exec_depend>
   <!-- scripts/bgr_relay.py: rgb8 -> bgr8 for the stereo pair. -->
   <exec_depend>rclpy</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>

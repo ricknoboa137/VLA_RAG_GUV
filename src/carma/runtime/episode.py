@@ -65,7 +65,7 @@ def run_episode(
     )
     steps: list[StepRecord] = []
     path_length = 0.0
-    previous_pose = obs.pose
+    previous_pose = obs.scored_pose
     started = time.perf_counter()
 
     for step_idx in range(spec.max_steps):
@@ -127,19 +127,23 @@ def run_episode(
             uncertainty=uncertainty,
         )
 
-        if obs.collided or action.stop or obs.pose.distance_to(spec.goal) <= spec.success_radius:
+        # Ending at the goal is the robot's own judgement, so it uses the pose
+        # the robot has; the outcome is scored on the true pose where known.
+        ended = obs.collided or obs.stalled or action.stop
+        if ended or obs.pose.distance_to(spec.goal) <= spec.success_radius:
             break
 
         # The episode, not the simulator, owns the instruction in force.
         obs = replace(assembly.sim.step(action), instruction=spec.instruction)
-        path_length += obs.pose.distance_to(previous_pose)
-        previous_pose = obs.pose
+        path_length += obs.scored_pose.distance_to(previous_pose)
+        previous_pose = obs.scored_pose
 
     return EpisodeRecord(
         spec=spec,
         steps=tuple(steps),
-        final_pose=obs.pose,
+        final_pose=obs.scored_pose,
         path_length=path_length,
         collided=obs.collided,
+        stalled=obs.stalled,
         wall_time_s=time.perf_counter() - started,
     )

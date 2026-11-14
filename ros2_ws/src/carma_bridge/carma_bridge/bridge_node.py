@@ -22,6 +22,20 @@ start pose, for analysis only: it drifts when the wheels slip and keeps
 counting when the robot is pushed against a crop row, and an earlier version
 that reported it as ``pose`` scored crashed episodes as successes.
 
+``true_pose`` is always that ground truth, for scoring. ``estimate_pose`` is
+what the robot itself can know: wheel speed for distance and the gyro for
+heading (``motion.PlanarEstimator``), started at the episode's start pose. A
+reset request may set ``pose_source`` to ``"estimate"``, and then ``pose``
+carries the estimate instead, so the policy and the arbiter run on what a real
+robot would have while episodes are still scored on the truth.
+
+``stalled`` is true when the robot has been driven forward for a second while
+its camera view stayed static (``motion.StallDetector``). The stall is also
+published on ``/carma/stall``, which latches the safety gate.
+
+Velocity commands go to ``/carma/cmd_vel_request``; the safety gate
+(``safety_node``) is the only publisher of ``/carma/cmd_vel``.
+
 ``collided`` is true when the robot's collision shapes, placed at the true
 pose, overlap any collision shape in the world other than the ground
 (``footprint.py``; Gazebo's contact sensors do not survive the "reset all" that
@@ -47,14 +61,20 @@ from nav_msgs.msg import Odometry
 from rclpy.node import Node
 from ros_gz_interfaces.srv import ControlWorld
 from rosgraph_msgs.msg import Clock
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, Imu
+from std_msgs.msg import Bool
 
 from carma_bridge import footprint
+from carma_bridge.motion import PlanarEstimator, PlanarPose, StallConfig, StallDetector
 from carma_bridge.protocol import recv_frame, send_frame
 
 _EPS_S = 1e-6
 # Messages kept per sensor. Only the newest one at or before the step target is used.
 _HISTORY = 8
+# Odometry and IMU are integrated over every message in a step, so they keep a
+# longer history: a 0.1 s step holds ten 100 Hz IMU messages.
+_RATE_HISTORY = 400
+_POSE_SOURCES = ("truth", "estimate")
 # Placing the robot: per-attempt timeout and attempts (see _place_robot).
 _PLACE_TIMEOUT_MS = 5000
 _PLACE_ATTEMPTS = 3
@@ -71,6 +91,7 @@ def _planar(msg: Odometry) -> dict[str, float]:
         "x": float(msg.pose.pose.position.x),
         "y": float(msg.pose.pose.position.y),
         "yaw": yaw,
+        "v": float(msg.twist.twist.linear.x),
     }
 
 
@@ -115,7 +136,13 @@ class BridgeNode(Node):
         self._ground = str(self.get_parameter("ground_name").value)
 
         self._cv = CvBridge()
-        self._cmd_pub = self.create_publisher(Twist, "/carma/cmd_vel", 10)
+        self._cmd_pub = self.create_publisher(Twist, "/carma/cmd_vel_request", 10)
+        self._stall_pub = self.create_publisher(Bool, "/carma/stall", 10)
+        self._estimator = PlanarEstimator()
+        self._stall = StallDetector(StallConfig())
+        self._pose_source = "truth"
+        self._integrated_s = 0.0  # stamp of the newest IMU message folded into the estimate
+        self._commanded_mps = 0.0  # forward speed requested for the step being taken
         self._control = self.create_client(ControlWorld, f"/world/{world}/control")
         self._start = (
             0.0,
@@ -127,6 +154,7 @@ class BridgeNode(Node):
         self._bundles: list[dict[str, Any]] = []  # recent synced image triplets, oldest first
         self._odoms: list[dict[str, float]] = []  # recent odometry, oldest first
         self._truths: list[dict[str, float]] = []  # recent ground-truth poses, oldest first
+        self._imus: list[dict[str, float]] = []  # recent gyro yaw rates, oldest first
         # Collision shapes: the robot's in its own frame, the world's in world frame.
         self._robot_shapes: list[footprint.Shape] = []
         self._obstacles: list[footprint.Shape] = []
@@ -144,6 +172,7 @@ class BridgeNode(Node):
         self._sync.registerCallback(self._on_images)
         self.create_subscription(Odometry, "/carma/odom", self._on_odom, 10)
         self.create_subscription(Odometry, "/carma/ground_truth/odom", self._on_truth, 10)
+        self.create_subscription(Imu, "/carma/imu", self._on_imu, 200)
         self.create_subscription(Clock, "/clock", self._on_clock, 100)
 
         self._running = True
@@ -173,7 +202,14 @@ class BridgeNode(Node):
 
     def _on_odom(self, msg: Odometry) -> None:
         with self._lock:
-            self._odoms = [*self._odoms, _planar(msg)][-_HISTORY:]
+            self._odoms = [*self._odoms, _planar(msg)][-_RATE_HISTORY:]
+            self._last_sensor_wall_s = time.monotonic()
+            self._lock.notify_all()
+
+    def _on_imu(self, msg: Imu) -> None:
+        sample = {"t": _stamp_s(msg.header.stamp), "wz": float(msg.angular_velocity.z)}
+        with self._lock:
+            self._imus = [*self._imus, sample][-_RATE_HISTORY:]
             self._last_sensor_wall_s = time.monotonic()
             self._lock.notify_all()
 
@@ -216,7 +252,7 @@ class BridgeNode(Node):
                 return
             try:
                 if op == "reset":
-                    reply = self._reset(request.get("start"))
+                    reply = self._reset(request.get("start"), request.get("pose_source", "truth"))
                 elif op == "step":
                     reply = self._step(request)
                 else:
@@ -368,12 +404,26 @@ class BridgeNode(Node):
                     "(is a stereo, depth, odometry or ground-truth publisher running?)"
                 )
             odom, truth, bundle = dict(odoms[-1]), dict(truths[-1]), dict(bundles[-1])
+            window = [i for i in self._imus if self._integrated_s < i["t"] <= target_s + tol]
+            speeds = list(odoms)
         stale = max(target_s - odom["t"], target_s - truth["t"], target_s - bundle["t"])
         if stale > 2.0 * self._camera_period_s:
             raise BridgeError(
                 f"the newest sensor data is {stale:.3f} s old at sim time {target_s:.3f} s: "
                 "a stereo, depth or odometry publisher has stalled"
             )
+        # Fold this step's gyro messages into the estimate, in stamp order, each
+        # with the newest wheel speed at or before it. Selection is by stamp, so
+        # the estimate is a function of simulated time like everything else.
+        for sample in sorted(window, key=lambda i: i["t"]):
+            before = [o for o in speeds if o["t"] <= sample["t"] + _EPS_S]
+            wheel = before[-1]["v"] if before else 0.0
+            self._estimator.update(sample["t"], wheel, sample["wz"])
+            self._integrated_s = sample["t"]
+        est = self._estimator.pose
+        stalled = self._stall.update(target_s - self._base_s, self._commanded_mps, bundle["left"])
+        if stalled:
+            self._stall_pub.publish(Bool(data=True))
         hit = footprint.first_hit(
             self._robot_shapes, self._obstacles, truth["x"], truth["y"], truth["yaw"]
         )
@@ -384,7 +434,15 @@ class BridgeNode(Node):
         return {
             "ok": True,
             "t": round(target_s - self._base_s, 9),
-            "pose": {key: truth[key] for key in ("x", "y", "yaw")},
+            "pose": (
+                {"x": est.x, "y": est.y, "yaw": est.yaw}
+                if self._pose_source == "estimate"
+                else {key: truth[key] for key in ("x", "y", "yaw")}
+            ),
+            "true_pose": {key: truth[key] for key in ("x", "y", "yaw")},
+            "estimate_pose": {"x": est.x, "y": est.y, "yaw": est.yaw},
+            "pose_source": self._pose_source,
+            "stalled": stalled,
             "odom_pose": self._world_pose(odom),
             "collided": hit is not None,
             "collision": hit,
@@ -397,7 +455,7 @@ class BridgeNode(Node):
             "sync_slop_s": self._slop_s,
         }
 
-    def _reset(self, start: Any) -> dict[str, Any]:
+    def _reset(self, start: Any, pose_source: Any = "truth") -> dict[str, Any]:
         # "Reset all" restores poses but not the vehicle's whole dynamic state:
         # with a 0.1 s settle, the first frame of an episode differed from run
         # to run depending on how the previous episode ended (measured: five
@@ -410,7 +468,12 @@ class BridgeNode(Node):
             sx, sy, syaw = (float(start[key]) for key in ("x", "y", "yaw"))
         except (TypeError, KeyError, ValueError) as error:
             raise BridgeError(f"reset needs a start pose with x, y and yaw: {error}") from error
+        if pose_source not in _POSE_SOURCES:
+            raise BridgeError(f"pose_source must be one of {_POSE_SOURCES}, got {pose_source!r}")
         self._start = (sx, sy, syaw)
+        self._pose_source = str(pose_source)
+        self._commanded_mps = 0.0
+        self._stall.reset()
         # The reset is applied on the next physics iteration, and a pose set
         # before then is overwritten by it, so reset and run that iteration in
         # one request (a separate step request cancelled the pending reset).
@@ -439,14 +502,18 @@ class BridgeNode(Node):
         time.sleep(max(0.1, 2.0 * self._quiet_s))
         with self._lock:
             self._bundles, self._odoms, self._clock_s = [], [], -1.0
-            self._truths = []
+            self._truths, self._imus = [], []
         # Settle long enough for every sensor to publish once; t = 0 is the end of it.
         self._call_control(pause=True, multi_step=self._settle_iterations)
         # The world restarts at sim time 0, so the settled state is at exactly
         # 1 + settle_iterations physics steps (the reset iteration, then the settle).
         self._now_s = self._base_s = (1 + self._settle_iterations) * self._physics_step_s
+        # The estimate starts at the requested start, at the end of the settle:
+        # the gyro messages of the settle itself are skipped, not integrated.
+        self._estimator.reset(PlanarPose(sx, sy, syaw), self._now_s)
+        self._integrated_s = self._now_s
         reply = self._wait_for(self._now_s)
-        pose = reply["pose"]
+        pose = reply["true_pose"]
         if math.hypot(pose["x"] - sx, pose["y"] - sy) > 0.15:
             raise BridgeError(
                 f"the robot is at ({pose['x']:.3f}, {pose['y']:.3f}) after reset, "
@@ -464,6 +531,7 @@ class BridgeNode(Node):
         iterations = round(dt_s / self._physics_step_s)
         if iterations < 1:
             raise BridgeError(f"dt_s={dt_s} is shorter than one physics step")
+        self._commanded_mps = linear
         self._publish(linear, angular)
         # ros_gz_bridge gives no acknowledgement, and a world stepped before the
         # command arrives would run one period on the previous command. A short

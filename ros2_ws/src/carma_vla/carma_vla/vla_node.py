@@ -10,7 +10,8 @@ Subscribes
 Publishes
     ``/carma/vla/action``   JSON per answered request: action, uncertainty, which
                             views were sent, what answered, measured latency
-    ``/carma/cmd_vel``      only with ``drive:=true``
+    ``/carma/cmd_vel_request``  only with ``drive:=true``; the safety gate
+                            (carma_bridge safety_node) forwards it to the base
     ``/carma/arm/<joint>/cmd_pos``  only with ``arm:=true``: an arm policy's chunk,
                             played out at ``arm_rate_hz``, clamped to the joint
                             limits and to ``arm_max_speed_rad_s``
@@ -92,7 +93,7 @@ class VlaNode(Node):
         self.declare_parameter("samples", 4)
         self.declare_parameter("action_topic", "/carma/vla/action")
         self.declare_parameter("drive", False)
-        self.declare_parameter("cmd_vel_topic", "/carma/cmd_vel")
+        self.declare_parameter("cmd_vel_topic", "/carma/cmd_vel_request")
         self.declare_parameter("arm", False)
         self.declare_parameter("arm_joints", list(ARM_JOINTS))
         self.declare_parameter("joint_states_topic", "/carma/arm/joint_states")

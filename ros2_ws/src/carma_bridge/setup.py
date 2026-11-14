@@ -20,6 +20,7 @@ setup(
     entry_points={
         "console_scripts": [
             f"bridge_node = {PACKAGE_NAME}.bridge_node:main",
+            f"safety_node = {PACKAGE_NAME}.safety_node:main",
         ],
     },
 )

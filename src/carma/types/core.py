@@ -84,6 +84,13 @@ class Observation:
         collided: True when the robot touched something other than the ground
             since the previous observation (a crop row, an obstacle). The
             episode ends there and counts as a failure.
+        stalled: True when the robot was driven but did not move (its camera
+            view stayed static). On a real robot this is how a collision shows
+            up; the episode ends there and counts as a failure.
+        true_pose: Ground-truth pose, where a simulator has one, for scoring
+            only: the policy and the arbiter use ``pose``, which may be the
+            robot's own estimate. ``None`` means ``pose`` is the best there is
+            (a real robot), and episodes are scored on it.
     """
 
     rgb: BgrImage
@@ -94,6 +101,13 @@ class Observation:
     stage: PhenologyStage
     rgb_right: BgrImage | None = None
     collided: bool = False
+    stalled: bool = False
+    true_pose: Pose | None = None
+
+    @property
+    def scored_pose(self) -> Pose:
+        """The pose episodes are scored on: the truth when known, else ``pose``."""
+        return self.true_pose if self.true_pose is not None else self.pose
 
 
 @dataclass(frozen=True, slots=True)
@@ -324,7 +338,10 @@ class EpisodeRecord:
     """The outcome of running one :class:`EpisodeSpec`.
 
     ``collided`` is true when the episode ended because the robot hit
-    something; such an episode is a failure wherever it ended.
+    something, and ``stalled`` when it ended because the robot was driven but
+    did not move; either is a failure wherever it ended. ``final_pose`` and
+    ``path_length`` are measured on the scored pose
+    (:attr:`Observation.scored_pose`).
     """
 
     spec: EpisodeSpec
@@ -333,11 +350,12 @@ class EpisodeRecord:
     path_length: float
     wall_time_s: float
     collided: bool = False
+    stalled: bool = False
 
     @property
     def success(self) -> bool:
-        """True when the robot finished inside the goal radius without a collision."""
-        if self.collided:
+        """True when the robot finished inside the goal radius without a collision or stall."""
+        if self.collided or self.stalled:
             return False
         return self.final_pose.distance_to(self.spec.goal) <= self.spec.success_radius
 

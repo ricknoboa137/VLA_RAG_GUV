@@ -20,6 +20,7 @@ from carma.metrics import (
     queries_per_100m,
     spl,
     staleness_rate,
+    stall_rate,
     success_rate,
 )
 from carma.types.core import Pose
@@ -43,6 +44,16 @@ def test_a_collision_fails_the_episode_even_inside_the_goal_radius() -> None:
     assert success_rate([clean, crashed]) == pytest.approx(0.5)
     assert collision_rate([clean, crashed]) == pytest.approx(0.5)
     assert collision_rate([]) == 0.0
+
+
+def test_a_stall_fails_the_episode_and_is_counted() -> None:
+    """Three episodes inside the radius; one stalled: success 2/3, stall rate 1/3."""
+    clean = make_episode(final=Pose(1.0, 0.0, 0.0), goal=Pose(0.0, 0.0, 0.0), path_length=10.0)
+    stuck = replace(clean, stalled=True)
+    assert stuck.success is False
+    assert success_rate([clean, clean, stuck]) == pytest.approx(2.0 / 3.0)
+    assert stall_rate([clean, clean, stuck]) == pytest.approx(1.0 / 3.0)
+    assert stall_rate([]) == 0.0
 
 
 def test_navigation_error_is_the_mean_over_all_episodes() -> None:

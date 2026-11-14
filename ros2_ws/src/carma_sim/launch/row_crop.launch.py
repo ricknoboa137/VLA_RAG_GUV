@@ -175,6 +175,18 @@ def _expand_world(context: LaunchContext) -> list[ExecuteProcess | Node]:
             output="screen",
             parameters=[{"use_sim_time": True}],
         ),
+        # The only publisher of /carma/cmd_vel. Everything upstream (the bridge,
+        # teleop, CARMA) requests on /carma/cmd_vel_request; the gate applies
+        # the emergency stop, the command watchdog and the speed limits. It runs
+        # on simulation time, so a paused lockstep world never trips it. See
+        # carma_bridge/safety.py.
+        Node(
+            package="carma_bridge",
+            executable="safety_node",
+            name="carma_safety",
+            output="screen",
+            parameters=[{"use_sim_time": True}],
+        ),
     ]
 
 
@@ -187,9 +199,7 @@ def generate_launch_description() -> LaunchDescription:
             DeclareLaunchArgument(
                 "stage",
                 default_value="VEGETATIVE",
-                description=(
-                    "Crop phenological stage. One of: " + ", ".join(PHENOLOGY_STAGES)
-                ),
+                description=("Crop phenological stage. One of: " + ", ".join(PHENOLOGY_STAGES)),
             ),
             DeclareLaunchArgument(
                 "headless",

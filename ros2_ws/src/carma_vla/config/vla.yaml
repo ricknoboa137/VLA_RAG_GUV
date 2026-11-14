@@ -27,9 +27,10 @@ carma_vla:
     seed: 0
     samples: 4
     action_topic: /carma/vla/action
-    # Off: actions are published on action_topic only. On: also /carma/cmd_vel.
+    # Off: actions are published on action_topic only. On: also cmd_vel_topic,
+    # which the safety gate forwards to /carma/cmd_vel.
     drive: false
-    cmd_vel_topic: /carma/cmd_vel
+    cmd_vel_topic: /carma/cmd_vel_request
     # The arm. Its joint angles go with every request; an arm policy
     # (policy_server.py --policy smolvla|xvla) answers with a chunk of joint
     # targets. Off: chunks are published on action_topic only. On: also played

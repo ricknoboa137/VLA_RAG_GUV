@@ -44,6 +44,11 @@ class GazeboAdapter:
             Software rendering needs generous values; see docs/simulation.md.
         bridge_url: Host the bridge listens on.
         bridge_port: TCP port the bridge listens on.
+        pose_source: ``"truth"`` hands the policy and arbiter the physics
+            engine's pose; ``"estimate"`` hands them what the robot can know
+            (wheel speed and gyro, see the bridge's ``motion.py``). Episodes
+            are scored on the true pose either way, via
+            ``Observation.true_pose``.
     """
 
     def __init__(
@@ -54,9 +59,13 @@ class GazeboAdapter:
         timeout_s: float = 60.0,
         bridge_url: str = "127.0.0.1",
         bridge_port: int = 5555,
+        pose_source: str = "truth",
     ) -> None:
         if control_hz <= 0.0:
             raise SimulatorError(f"control_hz must be positive, got {control_hz}")
+        if pose_source not in ("truth", "estimate"):
+            raise SimulatorError(f"pose_source must be 'truth' or 'estimate', got {pose_source!r}")
+        self._pose_source = pose_source
         self._dt_s = 1.0 / control_hz
         self._instruction = instruction
         self._stage = PhenologyStage[stage]
@@ -71,6 +80,7 @@ class GazeboAdapter:
             "op": "reset",
             "seed": int(seed),
             "start": {"x": float(start.x), "y": float(start.y), "yaw": float(start.yaw)},
+            "pose_source": self._pose_source,
         }
         return self._observation(self._request(request))
 
@@ -143,6 +153,7 @@ class GazeboAdapter:
             raise SimulatorError("the bridge sent a depth map that does not match its stated size")
         depth = np.frombuffer(depth_bytes, dtype="<f4").reshape(height, width).copy()
         pose = reply["pose"]
+        truth = reply.get("true_pose")
         return Observation(
             rgb=rgb,
             depth=depth,
@@ -151,4 +162,10 @@ class GazeboAdapter:
             instruction=self._instruction,
             stage=self._stage,
             collided=bool(reply["collided"]),
+            stalled=bool(reply.get("stalled", False)),
+            true_pose=(
+                None
+                if truth is None
+                else Pose(x=float(truth["x"]), y=float(truth["y"]), yaw=float(truth["yaw"]))
+            ),
         )

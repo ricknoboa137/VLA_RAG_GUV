@@ -30,6 +30,18 @@ def collision_rate(episodes: Sequence[EpisodeRecord]) -> float:
     return sum(1 for e in episodes if e.collided) / len(episodes)
 
 
+def stall_rate(episodes: Sequence[EpisodeRecord]) -> float:
+    """Fraction of episodes that ended because the robot was driven but did not move, ``[0, 1]``.
+
+    The camera-based stall check is how a real robot learns it is stuck
+    against something; in simulation it runs beside the geometric collision
+    check, and an episode can count in both.
+    """
+    if not episodes:
+        return 0.0
+    return sum(1 for e in episodes if e.stalled) / len(episodes)
+
+
 def navigation_error(episodes: Sequence[EpisodeRecord]) -> float:
     """Mean metres between final pose and goal, over all episodes.
 

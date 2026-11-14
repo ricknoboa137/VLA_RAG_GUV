@@ -149,13 +149,44 @@ What the adapter and bridge guarantee, and how it was checked:
 Cost: about 0.4 s of wall time per 0.1 s control step with software rendering
 (77 s for a 200-step episode), plus 2 s of simulated time at each reset.
 
+### The safety gate
+
+`carma_bridge safety_node` is the only publisher of `/carma/cmd_vel`. The
+bridge, teleop and `carma_vla` request motion on `/carma/cmd_vel_request`, and
+the gate passes a request through only if:
+
+- the emergency stop is released (`/carma/estop`, `std_msgs/Bool`; on the robot
+  this carries the hardware stop's state). Releasing it never resumes an old
+  command;
+- the request is younger than `command_timeout_s` (0.5 s), so a hung policy
+  server or bridge stops the robot;
+- no stall is latched (cleared by a zero command).
+
+Speeds are clamped to `max_linear_mps` (0.6) and `max_angular_radps` (1.0),
+above anything the expert or the policies command, so simulation results do
+not change. The gate runs on simulation time under `use_sim_time`, so a paused
+lockstep world never trips the watchdog. Its state is on `/carma/safety/state`.
+Logic: `carma_bridge/safety.py`, tested in `tests/test_safety.py`.
+
 ### Pose and collisions: what the reply means
 
-- **`pose` is the true pose** from the physics engine
-  (`/carma/ground_truth/odom`, Gazebo's `OdometryPublisher` on the model). It is
-  what episodes are scored on, and what the policy receives: it stands in for
-  the platform's localisation (GNSS or SLAM on the real robot), which is
-  assumed, not simulated. Adding localisation noise is future work.
+- **`pose` is what the policy and the arbiter receive.** By default it is the
+  true pose (`pose_source: truth`). With `sim.params.pose_source: estimate` it
+  is the robot's own estimate instead, `estimate_pose` below, which is what a
+  real robot has; use that to test anything meant to run on the hardware.
+- **`true_pose` is the ground truth** from the physics engine
+  (`/carma/ground_truth/odom`, Gazebo's `OdometryPublisher` on the model).
+  Episodes are always scored on it (`Observation.true_pose`,
+  `Observation.scored_pose`), whichever pose the policy saw. Whether the robot
+  thinks it has arrived is still decided on `pose`, because that decision is
+  the robot's.
+- **`estimate_pose` is wheel speed plus gyro** (`carma_bridge/motion.py`,
+  `PlanarEstimator`): distance from the odometry's forward speed, heading from
+  the IMU's yaw rate (`/carma/imu`, 100 Hz), started at the episode's start
+  pose. It removes the heading drift below; it does not fix distance while the
+  wheels slip. The simulated gyro has no noise, because Gazebo's sensor noise
+  comes from an RNG this project does not seed and would break replay, so the
+  estimate is better here than it will be on the robot.
 - **`odom_pose` is wheel odometry** composed with the start pose, kept for
   analysis only. Until 2026-11-13 the bridge reported it as `pose`, and that
   invalidated every Gazebo navigation result before that date: the odometry
@@ -173,6 +204,14 @@ Cost: about 0.4 s of wall time per 0.1 s control step with software rendering
   contact sensors were tried first and do not survive the "reset all" that
   starts each episode: the contact publisher was present before a reset and
   gone after it.
+- **`stalled`** is true when the robot has been commanded forward at 0.2 m/s
+  or more for 2 s while its camera view stayed static (mean grey-level change
+  under 0.3 on a 64x48 thumbnail; `motion.StallDetector`). Measured in the
+  alley: driving at 0.5 m/s changes the view by at least 0.98 per second,
+  parked by 0.0; a first threshold of 1.0 fired on a moving robot. This is how a real
+  robot learns it is stuck, since it has no collision geometry of the world.
+  It ends the episode as a failure (`EpisodeRecord.stalled`, `stall_rate`), is
+  published on `/carma/stall`, and latches the safety gate.
 - **Clearance.** At VEGETATIVE the rows are 0.45 m wide on 1.5 m centres, so
   the alley between canopies is 1.05 m and the 0.72 m-wide robot has about
   +/-0.165 m of lateral room. Small heading errors matter.

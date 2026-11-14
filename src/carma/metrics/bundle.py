@@ -14,7 +14,13 @@ from carma.metrics.interaction import (
 )
 from carma.metrics.retrieval import retrieval_rate
 from carma.metrics.systems import decision_latency_summary
-from carma.metrics.task import collision_rate, navigation_error, spl, success_rate
+from carma.metrics.task import (
+    collision_rate,
+    navigation_error,
+    spl,
+    stall_rate,
+    success_rate,
+)
 from carma.types.core import EpisodeRecord
 
 DEFAULT_SWATH_M = 2.0
@@ -32,6 +38,7 @@ class MetricBundle:
     episodes: int
     success_rate: float
     collision_rate: float
+    stall_rate: float
     navigation_error_m: float
     spl: float
     queries_per_100m: float
@@ -55,6 +62,7 @@ def summarise(
         episodes=len(episodes),
         success_rate=success_rate(episodes),
         collision_rate=collision_rate(episodes),
+        stall_rate=stall_rate(episodes),
         navigation_error_m=navigation_error(episodes),
         spl=spl(episodes),
         queries_per_100m=queries_per_100m(episodes),

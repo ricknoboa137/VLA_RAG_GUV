@@ -116,3 +116,46 @@ def test_a_collision_ends_the_episode_as_a_failure() -> None:
     assert record.collided
     assert not record.success
     assert Crashing.steps == 3
+
+
+def test_a_stall_ends_the_episode_as_a_failure() -> None:
+    """A sim that reports a stall on its second step stops the episode there."""
+    from carma.config import build
+    from carma.runtime.episode import run_episode
+    from carma.types.core import Action, Observation
+
+    class Stuck(SyntheticSim):
+        steps = 0
+
+        def step(self, action: Action) -> Observation:
+            Stuck.steps += 1
+            return replace(super().step(action), stalled=Stuck.steps == 2)
+
+    cfg = replace(load(_SMOKE), route=ComponentSpec("row_alley", {}))
+    assembly = replace(build(cfg), sim=Stuck())
+    spec = _episodes(replace(cfg, episodes=1))[0]
+    record = run_episode(spec, assembly, seed=0, run_id="t")
+    assert record.stalled and not record.collided
+    assert not record.success
+    assert Stuck.steps == 2
+
+
+def test_the_episode_is_scored_on_the_true_pose_when_there_is_one() -> None:
+    """The robot believes it is at the goal; the truth is 3 m short: a failure."""
+    from carma.config import build
+    from carma.runtime.episode import run_episode
+    from carma.types.core import Action, Observation
+
+    cfg = replace(load(_SMOKE), route=ComponentSpec("row_alley", {}))
+    spec = _episodes(replace(cfg, episodes=1))[0]
+    short = Pose(spec.goal.x - 3.0, spec.goal.y, spec.goal.yaw)
+
+    class Deluded(SyntheticSim):
+        def step(self, action: Action) -> Observation:
+            return replace(super().step(action), pose=spec.goal, true_pose=short)
+
+    assembly = replace(build(cfg), sim=Deluded())
+    record = run_episode(spec, assembly, seed=0, run_id="t")
+    assert record.final_pose == short
+    assert record.navigation_error == pytest.approx(3.0)
+    assert not record.success

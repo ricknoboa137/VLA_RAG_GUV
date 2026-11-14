@@ -226,6 +226,19 @@
           <diffuse>0.22 0.22 0.22 1</diffuse>
         </material>
       </visual>
+
+      <!-- IMU at the chassis centre. Its yaw rate is the heading source for the
+           bridge's pose estimate (carma_bridge/motion.py): heading integrated
+           from steering drifted by 0.84 rad in one alley episode. No sensor
+           noise: Gazebo draws noise from an RNG this project does not seed,
+           which would break replay determinism. A real gyro's noise and bias
+           are therefore not exercised in simulation; docs/robot-readiness.md
+           lists that as an open gap. -->
+      <sensor name="imu" type="imu">
+        <topic>/carma/imu</topic>
+        <update_rate>100</update_rate>
+        <always_on>true</always_on>
+      </sensor>
     </link>
 
     <!-- ===================== sensors ===================== -->

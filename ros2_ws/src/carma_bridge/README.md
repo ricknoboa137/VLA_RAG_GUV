@@ -11,11 +11,16 @@ name or a type here is a breaking change and must be reflected in
 
 | Direction | Topic | Type | Meaning |
 |---|---|---|---|
-| bridge -> robot | `/carma/cmd_vel` | `geometry_msgs/Twist` | Velocity command |
+| bridge -> gate | `/carma/cmd_vel_request` | `geometry_msgs/Twist` | Requested velocity |
+| gate -> robot | `/carma/cmd_vel` | `geometry_msgs/Twist` | Gated velocity; `safety_node` is its only publisher |
+| any -> gate | `/carma/estop` | `std_msgs/Bool` | True engages the emergency stop |
+| bridge -> gate | `/carma/stall` | `std_msgs/Bool` | True latches a stall until a zero command |
+| gate -> any | `/carma/safety/state` | `std_msgs/String` | ok, limited, estop, timeout, stalled or idle |
 | robot -> bridge | `/carma/stereo/left/image_raw` | `sensor_msgs/Image` | Left camera, `bgr8`; the monocular image when not stereo |
 | robot -> bridge | `/carma/stereo/right/image_raw` | `sensor_msgs/Image` | Right camera, `bgr8` |
 | robot -> bridge | `/carma/camera/depth` | `sensor_msgs/Image` | Depth, `32FC1`, metres |
-| robot -> bridge | `/carma/odom` | `nav_msgs/Odometry` | Pose in the map frame |
+| robot -> bridge | `/carma/odom` | `nav_msgs/Odometry` | Wheel odometry; its forward speed feeds the pose estimate |
+| robot -> bridge | `/carma/imu` | `sensor_msgs/Imu` | Gyro yaw rate, the heading source of the pose estimate |
 | bridge -> library | `/carma/observation` | serialised `Observation` | Synchronised bundle |
 | library -> bridge | `/carma/reset` | `std_srvs/Trigger` | Episode reset |
 
