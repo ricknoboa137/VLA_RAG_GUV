@@ -20,10 +20,11 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from carma.backbone.context import task_text
 from carma.types.core import Action, EpisodeSpec, Observation, Pose
 from carma.types.protocols import NavigationBackbone, SimAdapter
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2  # 2: every step records the task text the policy saw
 
 
 @dataclass(frozen=True)
@@ -54,6 +55,9 @@ class DemoStep:
         label: The expert's command on this state; the training target.
         executed: What was actually sent to the simulator (label plus disturbance).
         disturbed: True while a steering burst was active.
+        task: The text the policy is trained on for this step: the
+            instruction, plus any operator context in force
+            (:func:`carma.backbone.context.task_text`).
     """
 
     rgb: np.ndarray  # type: ignore[type-arg]
@@ -62,6 +66,7 @@ class DemoStep:
     label: Action
     executed: Action
     disturbed: bool
+    task: str = ""
 
 
 @dataclass
@@ -88,12 +93,22 @@ def record_episode(
     seed: int,
     rng: np.random.Generator,
     disturbance: Disturbance | None,
+    advice_range_m: float = 6.0,
+    distractor: str | None = None,
 ) -> DemoEpisode:
     """Drive one episode with the expert and record every step.
 
     The episode ends when the expert declares stop, the robot collides, or
     ``spec.max_steps`` is hit. The stop step is recorded too, so the policy
     learns when to stop.
+
+    Operator context, as the policy will meet it at run time: in an episode
+    with a hidden hazard, the hazard's advice is in force from the step the
+    robot is within ``advice_range_m`` of it (when the scripted operator would
+    give it and spatial retrieval would find it), and the expert obeys it. A
+    ``distractor`` (an unrelated operator remark) is in force for the whole of
+    a hazard-free episode, so the policy also learns to drive on when the
+    context does not concern stopping.
     """
     episode = DemoEpisode(spec=spec, seed=seed)
     obs: Observation = sim.reset(seed=seed, start=spec.start)
@@ -103,7 +118,8 @@ def record_episode(
         if obs.collided:
             episode.collided = True
             break
-        label, _ = expert.act(obs, (), rng=rng)
+        context = _context(spec, obs, advice_range_m, distractor)
+        label, _ = expert.act(obs, context, rng=rng)
         if (
             disturbance is not None
             and not label.stop
@@ -117,7 +133,17 @@ def record_episode(
         if disturbed and disturbance is not None:
             executed = Action(label.linear, label.angular + sign * disturbance.magnitude_radps)
             remaining -= 1
-        episode.steps.append(DemoStep(obs.rgb, obs.pose, obs.t, label, executed, disturbed))
+        episode.steps.append(
+            DemoStep(
+                obs.rgb,
+                obs.pose,
+                obs.t,
+                label,
+                executed,
+                disturbed,
+                task_text(spec.instruction, context),
+            )
+        )
         if label.stop:
             break
         obs = _with_instruction(sim.step(executed), spec.instruction)
@@ -155,12 +181,25 @@ def write_episode(root: Path, episode: DemoEpisode) -> Path:
                 "label": [s.label.linear, s.label.angular, s.label.stop],
                 "executed": [s.executed.linear, s.executed.angular],
                 "disturbed": s.disturbed,
+                "task": s.task or spec.instruction,
             }
             for s in episode.steps
         ],
     }
     (folder / "meta.json").write_text(json.dumps(meta, indent=1), encoding="utf-8")
     return folder
+
+
+def _context(
+    spec: EpisodeSpec, obs: Observation, advice_range_m: float, distractor: str | None
+) -> tuple[str, ...]:
+    """The operator context in force at ``obs`` (see :func:`record_episode`)."""
+    advice = tuple(h.advice for h in spec.hazards if h.position.x - obs.pose.x <= advice_range_m)
+    if advice:
+        return advice
+    if not spec.hazards and distractor is not None:
+        return (distractor,)
+    return ()
 
 
 def _with_instruction(obs: Observation, text: str) -> Observation:

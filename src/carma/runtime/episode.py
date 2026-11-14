@@ -17,10 +17,12 @@ import structlog
 from carma.config import Assembly
 from carma.types.core import (
     Choice,
+    Correction,
     EpisodeRecord,
     EpisodeSpec,
     Observation,
     OperatorQuery,
+    Pose,
     StepRecord,
 )
 
@@ -59,6 +61,11 @@ def run_episode(
     rng = np.random.default_rng(seed)
     _maybe_reset(assembly.backbone)
     _maybe_reset(assembly.arbiter)
+    # A simulated operator may know the field (where the hidden hazards are);
+    # a live one does, and needs no telling. Duck-typed like reset().
+    begin = getattr(assembly.operator, "begin_episode", None)
+    if callable(begin):
+        begin(spec)
 
     obs: Observation = replace(
         assembly.sim.reset(seed=seed, start=spec.start), instruction=spec.instruction
@@ -66,6 +73,7 @@ def run_episode(
     steps: list[StepRecord] = []
     path_length = 0.0
     previous_pose = obs.scored_pose
+    entered_hazard = False
     started = time.perf_counter()
 
     for step_idx in range(spec.max_steps):
@@ -98,6 +106,16 @@ def run_episode(
             if callable(note_ask):
                 note_ask()
             if not response.refused:
+                # An answer is operator knowledge like a volunteered correction:
+                # it goes into memory, so the robot need not ask twice about the
+                # same spot. The ask itself is still priced and recorded.
+                assembly.retriever.ingest(
+                    Correction(
+                        text=response.text,
+                        observation=obs,
+                        operator_id=getattr(assembly.operator, "operator_id", "operator"),
+                    )
+                )
                 action, uncertainty = assembly.backbone.act(obs, (response.text,), rng=rng)
                 for entry in assembly.hygiene.select_for_review(
                     assembly.store.all(), obs, _REVIEW_BUDGET
@@ -127,10 +145,17 @@ def run_episode(
             uncertainty=uncertainty,
         )
 
-        # Ending at the goal is the robot's own judgement, so it uses the pose
+        if _in_hazard(spec, obs.scored_pose):
+            entered_hazard = True
+            break
+        # Arriving inside the goal radius ends the episode, judged on the pose
         # the robot has; the outcome is scored on the true pose where known.
+        # Not with a hidden hazard: there the goal is the stop point before it,
+        # and ending the episode on reaching it would hand every condition the
+        # knowledge only the operator has. The robot must stop on its own.
         ended = obs.collided or obs.stalled or action.stop
-        if ended or obs.pose.distance_to(spec.goal) <= spec.success_radius:
+        arrived = not spec.hazards and obs.pose.distance_to(spec.goal) <= spec.success_radius
+        if ended or arrived:
             break
 
         # The episode, not the simulator, owns the instruction in force.
@@ -145,5 +170,11 @@ def run_episode(
         path_length=path_length,
         collided=obs.collided,
         stalled=obs.stalled,
+        entered_hazard=entered_hazard,
         wall_time_s=time.perf_counter() - started,
     )
+
+
+def _in_hazard(spec: EpisodeSpec, pose: Pose) -> bool:
+    """True when ``pose`` is inside any of the episode's hidden hazards."""
+    return any(pose.distance_to(h.position) < h.keep_out_m for h in spec.hazards)

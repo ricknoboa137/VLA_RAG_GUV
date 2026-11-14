@@ -23,6 +23,7 @@ from pathlib import Path
 import numpy as np
 
 from carma.backbone.alley_expert import AlleyExpert
+from carma.operator.scripted import DEFAULT_ANSWERS
 from carma.runtime.demonstrations import Disturbance, record_episode, write_episode
 from carma.runtime.episodes import row_alley_episodes
 from carma.sim.gazebo import GazeboAdapter
@@ -51,6 +52,18 @@ def main() -> int:
     parser.add_argument("--start-yaw", type=float, default=0.2, help="max start heading, rad")
     parser.add_argument("--disturb", type=float, default=0.02, help="burst chance per step")
     parser.add_argument("--no-disturb", action="store_true")
+    parser.add_argument(
+        "--hazard-probability",
+        type=float,
+        default=0.0,
+        help="chance per episode of a hidden hazard; the expert obeys its advice",
+    )
+    parser.add_argument(
+        "--distractor-probability",
+        type=float,
+        default=0.0,
+        help="chance per hazard-free episode of an unrelated operator remark as context",
+    )
     parser.add_argument("--control-hz", type=float, default=10.0)
     parser.add_argument("--bridge-url", default="127.0.0.1")
     parser.add_argument("--bridge-port", type=int, default=5555)
@@ -63,6 +76,7 @@ def main() -> int:
         "start_offset_m": args.start_offset,
         "start_yaw_rad": args.start_yaw,
         "max_steps": 400,
+        "hazard_probability": args.hazard_probability,
     }
     stage = PhenologyStage[args.stage]
     specs = row_alley_episodes(
@@ -81,8 +95,19 @@ def main() -> int:
     try:
         for index, spec in enumerate(specs):
             rng = np.random.default_rng(args.seed + 1000 + index)
+            # Its own generator, so adding distractors leaves the disturbances as they were.
+            pick = np.random.default_rng(args.seed + 5000 + index)
+            distractor = None
+            if not spec.hazards and pick.random() < args.distractor_probability:
+                distractor = DEFAULT_ANSWERS[int(pick.integers(0, len(DEFAULT_ANSWERS)))]
             episode = record_episode(
-                sim, expert, spec, seed=args.seed + index, rng=rng, disturbance=disturbance
+                sim,
+                expert,
+                spec,
+                seed=args.seed + index,
+                rng=rng,
+                disturbance=disturbance,
+                distractor=distractor,
             )
             write_episode(args.out, episode)
             written.append(spec.episode_id)
@@ -91,6 +116,10 @@ def main() -> int:
             if episode.collided:
                 crashed.append(spec.episode_id)
             note = "  COLLIDED (left out of training)" if episode.collided else ""
+            if spec.hazards:
+                note += f"  hazard: {spec.hazards[0].advice}"
+            elif distractor is not None:
+                note += f"  distractor: {distractor!r}"
             print(
                 f"{spec.episode_id}: {len(episode.steps)} steps, {bursts} disturbed{note}",
                 flush=True,

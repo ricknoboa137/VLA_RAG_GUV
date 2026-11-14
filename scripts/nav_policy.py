@@ -23,6 +23,7 @@ from typing import Any
 import cv2
 import numpy as np
 
+from carma.backbone.context import task_text
 from carma.backbone.wire import ActRequest, ActResponse, decode_image
 
 STOP_THRESHOLD = 0.5
@@ -95,7 +96,11 @@ class NavVlaPolicy:
         started = time.monotonic()
         samples = max(1, request.samples)
         chunks = self.chunk(
-            decode_image(request.image), request.pose, request.instruction, request.seed, samples
+            decode_image(request.image),
+            request.pose,
+            task_text(request.instruction, request.context),
+            request.seed,
+            samples,
         )
         first = chunks[:, 0, :]
         mean = first.mean(axis=0)
