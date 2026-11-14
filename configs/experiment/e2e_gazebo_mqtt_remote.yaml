@@ -1,0 +1,85 @@
+# End-to-end experiment with Gazebo simulator, MQTT voice operator, and remote VLA backbone.
+#
+# Bring-up order:
+#
+# 1. Gazebo, paused so the bridge can step it (terminal 1):
+#    ros2 launch carma_sim row_crop.launch.py stage:=VEGETATIVE lockstep:=true
+#
+# 2. carma_bridge node (terminal 2; publishes TCP port 5555):
+#    ros2 run carma_bridge bridge_node
+#
+# 3. Policy server (terminal 3):
+#    python scripts/policy_server.py --policy echo --self-check
+#    # Or for a real VLA: --policy smolvla/xvla (needs carma-train env)
+#
+# 4. MQTT broker must be running at the address below (the Quest app connects here).
+#    On Linux/macOS: mosquitto -c /etc/mosquitto/mosquitto.conf
+#    On Windows: mosquitto.exe -c mosquitto.conf
+#    This operator cannot answer questions (push-to-talk), so a run in
+#    which the arbiter chooses ASK fails with OperatorUnavailableError.
+#
+# 5. Run this experiment (terminal 4):
+#    carma run --config configs/experiment/e2e_gazebo_mqtt_remote.yaml
+
+name: e2e_gazebo_mqtt_remote
+condition: carma
+seed: 0
+episodes: 3
+
+backbone:
+  kind: remote
+  params:
+    url: http://127.0.0.1:8000/act
+    timeout_s: 10.0
+    samples: 4
+    send_depth: false
+    send_right: false
+
+embedder:
+  kind: hashing
+  params:
+    dim: 256
+
+store:
+  kind: in_memory
+
+retriever:
+  kind: similarity
+  params:
+    min_score: 0.15
+
+hygiene:
+  kind: stage_decay
+
+cost_model:
+  kind: linear
+  params:
+    recovery_s: 45.0
+    retrieval_s: 0.12
+    operator_s: 20.0
+    retrieval_efficacy: 0.6
+    ask_efficacy: 0.95
+
+arbiter:
+  kind: cost_aware
+  params:
+    probe_k: 3
+    ask_budget: 10
+
+operator:
+  kind: mqtt
+  params:
+    broker: 127.0.0.1
+    port: 1883
+    operator_id: quest
+    utterance_topic: carma/operator/utterance
+    connect_timeout_s: 10.0
+
+sim:
+  kind: gazebo
+  params:
+    control_hz: 10.0
+    stage: VEGETATIVE
+    timeout_s: 120.0
+    bridge_url: 127.0.0.1
+    bridge_port: 5555
