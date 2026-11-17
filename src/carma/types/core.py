@@ -163,7 +163,11 @@ class MemoryEntry:
         text: The paraphrased correction.
         embedding: Unit-norm text embedding, float32.
         pose: Where the correction was given.
-        created_at: Seconds since the Unix epoch.
+        created_at: Run clock at creation: simulated seconds since the start
+            of the run, accumulated across its episodes (an episode's
+            ``Observation.t`` plus the durations of the episodes before it).
+            Never wall-clock time, so the same (config, seed, commit) gives
+            the same entries.
         stage: Crop stage at creation.
         provenance: Operator identifier.
         invalidated: True once an operator has retired this entry.

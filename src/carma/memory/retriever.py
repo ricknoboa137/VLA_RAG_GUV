@@ -58,12 +58,16 @@ class SimilarityRetriever:
             latency_s=latency,
         )
 
-    def ingest(self, correction: Correction) -> MemoryEntry:
+    def ingest(self, correction: Correction, *, run_t: float) -> MemoryEntry:
         """Convert an operator correction into a stored entry.
 
         The entry text is the operator's words. Paraphrasing to strip
         task-specific detail is a deliberate later step and belongs in its own
         module, not hidden here.
+
+        Args:
+            correction: The operator's correction.
+            run_t: Run clock in simulated seconds; stored as ``created_at``.
         """
         embedder, store = self._require()
         vec = embedder.embed([correction.text])[0]
@@ -75,7 +79,7 @@ class SimilarityRetriever:
             text=correction.text,
             embedding=vec,
             pose=correction.observation.pose,
-            created_at=time.time(),
+            created_at=run_t,
             stage=correction.observation.stage,
             provenance=correction.operator_id,
             meta={"took_over": correction.took_over},

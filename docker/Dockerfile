@@ -130,5 +130,10 @@ COPY docker/requirements-dev.lock /tmp/requirements-dev.lock
 RUN pip install --no-cache-dir --no-deps -r /tmp/requirements-dev.lock \
     && rm /tmp/requirements-dev.lock
 COPY tests /opt/carma/tests
+# Tests read these as files: the ROS packages' sources (arm model, bridge
+# protocol) and the episode splitter with its recorded splits.
+COPY ros2_ws/src /opt/carma/ros2_ws/src
+COPY training/split_episodes.py /opt/carma/training/split_episodes.py
+COPY training/splits /opt/carma/training/splits
 COPY Makefile /opt/carma/
 CMD ["make", "check"]

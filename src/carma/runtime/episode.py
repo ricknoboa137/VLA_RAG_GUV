@@ -44,6 +44,7 @@ def run_episode(
     *,
     seed: int,
     run_id: str = "",
+    run_t0: float = 0.0,
 ) -> EpisodeRecord:
     """Run one episode and return its record.
 
@@ -57,6 +58,10 @@ def run_episode(
         seed: Episode seed. Derived from the master seed by the caller so that
             episode ``i`` is reproducible independently of the others.
         run_id: Recorded in the decision log.
+        run_t0: Run clock at this episode's start, in simulated seconds. The
+            run clock at an observation is ``run_t0 + obs.t``; memory entries
+            are stamped and aged on it, so staleness persists across episodes
+            without reading the wall clock.
     """
     rng = np.random.default_rng(seed)
     _maybe_reset(assembly.backbone)
@@ -77,8 +82,9 @@ def run_episode(
     started = time.perf_counter()
 
     for step_idx in range(spec.max_steps):
+        run_t = run_t0 + obs.t
         for correction in assembly.operator.poll_corrections(obs):
-            assembly.retriever.ingest(correction)
+            assembly.retriever.ingest(correction, run_t=run_t)
 
         action, uncertainty = assembly.backbone.act(obs, (), rng=rng)
         decision = assembly.arbiter.decide(obs, uncertainty)
@@ -89,7 +95,9 @@ def run_episode(
 
         if decision.choice is Choice.RETRIEVE:
             result = assembly.retriever.retrieve(obs, _RETRIEVE_K)
-            live = tuple(e for e in result.entries if assembly.hygiene.staleness(e, obs) < 0.75)
+            live = tuple(
+                e for e in result.entries if assembly.hygiene.staleness(e, obs, run_t=run_t) < 0.75
+            )
             retrieved_ids = tuple(e.entry_id for e in live)
             if live:
                 action, uncertainty = assembly.backbone.act(
@@ -114,11 +122,12 @@ def run_episode(
                         text=response.text,
                         observation=obs,
                         operator_id=getattr(assembly.operator, "operator_id", "operator"),
-                    )
+                    ),
+                    run_t=run_t,
                 )
                 action, uncertainty = assembly.backbone.act(obs, (response.text,), rng=rng)
                 for entry in assembly.hygiene.select_for_review(
-                    assembly.store.all(), obs, _REVIEW_BUDGET
+                    assembly.store.all(), obs, _REVIEW_BUDGET, run_t=run_t
                 ):
                     assembly.store.invalidate(entry.entry_id)
 
