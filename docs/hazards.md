@@ -67,3 +67,22 @@ most of the route before the patch. Every condition loses the first episode:
 memory is empty and a confident backbone never asks. Hygiene makes no
 difference here because the hazard never moves; a patch that dries up between
 passes is the case that would separate them.
+
+## With a trained policy in Gazebo
+
+`nav_hz/003000`, a navigation SmolVLA trained on demonstrations that carry the
+advice in the task text, same configs, 2026-11-15
+(`training/results/2026-11-15_nav-hazard/`):
+
+| Condition | Success | Hazard entered | Choices |
+|---|---|---|---|
+| no_memory | 0/8 | 8/8 | 1159 acts |
+| unconditional_retrieval | 7/8 | 1/8 | 1090 retrievals |
+| ask_only | 0/8 | 8/8 | never asked |
+| carma | 7/8 | 1/8 | 902 retrievals, 188 acts |
+| carma_no_hygiene | 7/8 | 1/8 | 902 retrievals, 188 acts |
+
+The learned policy obeys retrieved advice as the expert did, and the
+synthetic pattern holds: carma matches unconditional retrieval at 17% fewer
+retrievals. Its uncertainty stays near 0.03 to 0.06, so asking is never priced
+below acting and the first episode is lost everywhere.
