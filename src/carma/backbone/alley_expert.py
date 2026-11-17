@@ -17,6 +17,7 @@ import re
 
 import numpy as np
 
+from carma.backbone.context import stop_distance
 from carma.backbone.registry import BACKBONES
 from carma.types import BackboneError
 from carma.types.core import Action, Observation
@@ -66,7 +67,11 @@ class AlleyExpert:
         if match is None:
             msg = f"the instruction names no distance in metres: {obs.instruction!r}"
             raise BackboneError(msg)
-        if obs.pose.x >= float(match.group(1)) - self._stop_margin:
+        # An operator's "stop at N metres" overrides the instruction's distance:
+        # the expert does what a well-trained policy should do with that advice.
+        told = stop_distance(context)
+        target = float(match.group(1)) if told is None else told
+        if obs.pose.x >= target - self._stop_margin:
             return Action(linear=0.0, angular=0.0, stop=True), 0.0
         turn = -self._k_lateral * obs.pose.y - self._k_heading * obs.pose.yaw
         angular = float(np.clip(turn, -self._max_angular, self._max_angular))

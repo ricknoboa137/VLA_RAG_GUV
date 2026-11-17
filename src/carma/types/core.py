@@ -313,6 +313,29 @@ class StepRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class Hazard:
+    """A spot the robot must not enter and cannot see: a wet patch, a buried stone.
+
+    Hidden on purpose. The camera shows nothing there, so the backbone alone
+    cannot avoid it; only knowledge from the operator, asked now or remembered
+    from an earlier pass, can. Entering it ends the episode as a failure.
+
+    Attributes:
+        position: Centre of the hazard, map frame.
+        keep_out_m: The robot fails when its centre comes within this many
+            metres of ``position``.
+        advice: What an operator who knows the field says about it, e.g.
+            "wet patch at 8 metres: stop at 6 metres". The scripted operator
+            answers and volunteers this text; it is never given to the policy
+            directly.
+    """
+
+    position: Pose
+    keep_out_m: float
+    advice: str
+
+
+@dataclass(frozen=True, slots=True)
 class EpisodeSpec:
     """The definition of one navigation episode.
 
@@ -325,6 +348,10 @@ class EpisodeSpec:
         shortest_path_length: Metres, used as the denominator of SPL.
         stage: Crop stage this episode was recorded in.
         max_steps: Hard cap on episode length.
+        hazards: Hidden hazards on the route (:class:`Hazard`). When there is
+            one, ``goal`` is the stop point before it, not the distance named
+            in ``instruction``: stopping short on the operator's advice is the
+            right outcome, driving on as instructed is not.
     """
 
     episode_id: str
@@ -335,6 +362,7 @@ class EpisodeSpec:
     shortest_path_length: float
     stage: PhenologyStage
     max_steps: int = 500
+    hazards: tuple[Hazard, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -355,11 +383,12 @@ class EpisodeRecord:
     wall_time_s: float
     collided: bool = False
     stalled: bool = False
+    entered_hazard: bool = False
 
     @property
     def success(self) -> bool:
-        """True when the robot finished inside the goal radius without a collision or stall."""
-        if self.collided or self.stalled:
+        """True when the robot ended inside the goal radius with no collision, stall or hazard."""
+        if self.collided or self.stalled or self.entered_hazard:
             return False
         return self.final_pose.distance_to(self.spec.goal) <= self.spec.success_radius
 

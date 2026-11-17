@@ -14,6 +14,37 @@ allocator cap (see `training/README.md`, the Windows spill trap).
 
 ---
 
+## 2026-11-15: hidden-hazard study in Gazebo with a policy that reads operator advice
+
+Folder: [`2026-11-15_nav-hazard/`](2026-11-15_nav-hazard/)
+
+Checkpoint `nav_hz/003000`: navigation SmolVLA trained 3000 steps on 40 expert
+alley runs (seed 200; half with a hidden wet patch whose advice is in the task
+text from 6 m before it, half of the rest with an unrelated operator remark),
+split `training/splits/nav_alley_hz_seed0.json` (32/4/4), final training loss
+about 0.12. Evaluated on `configs/experiment/hazard_study/` at commit 433e0b3
+(patch at 8 m, stop at 6 m, `memory_risk` 0.5, 8 episodes per condition). The
+manifests say `git_dirty: true`: the only change was the then-untracked split
+file, which is committed with this entry.
+
+| Condition | Config hash | Success | Hazard entered | SPL | Choices |
+|---|---|---|---|---|---|
+| no_memory | 93508a7f587ac21f | 0/8 | 8/8 | 0.00 | 1159 act |
+| unconditional_retrieval | ffa34755827bf286 | 7/8 | 1/8 | 0.81 | 1090 retrieve |
+| ask_only | f3b889996a8b7d47 | 0/8 | 8/8 | 0.00 | 1159 act, never asked |
+| carma | aff9e3f783b5ac33 | 7/8 | 1/8 | 0.81 | 902 retrieve, 188 act |
+| carma_no_hygiene | ba531765acab63d9 | 7/8 | 1/8 | 0.81 | 902 retrieve, 188 act |
+
+The trained policy stops where retrieved advice says, so the synthetic result
+of 2026-11-14 (expert backbone) holds with a learned one: carma matches
+unconditional retrieval at 17% fewer retrievals. The lost episode is the first,
+with empty memory, in every memory condition. The backbone's uncertainty stays
+low (about 0.03 to 0.06), so ask_only never asks. Hygiene has no effect
+because the patch never moves. No collisions, no stalls, no policy-server
+retries.
+
+---
+
 ## 2026-11-14: the five Gazebo conditions reproduced from a clean commit
 
 Folder: [`2026-11-13_nav-alley-truepose/clean_d390f10/`](2026-11-13_nav-alley-truepose/clean_d390f10/)

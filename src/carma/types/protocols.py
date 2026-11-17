@@ -159,15 +159,23 @@ class CostModel(Protocol):
     comparable; see ``docs/cost-model.md``.
     """
 
-    def cost_act(self, uncertainty: float) -> float:
+    def risk(self, uncertainty: float, expected_gain: float) -> float:
+        """Probability in ``[0, 1]`` that acting now goes wrong.
+
+        Built from the backbone's uncertainty and the memory probe's gain; the
+        three prices below are all functions of it.
+        """
+        ...
+
+    def cost_act(self, risk: float) -> float:
         """Expected cost of acting on the backbone's output directly."""
         ...
 
-    def cost_retrieve(self, uncertainty: float, expected_gain: float) -> float:
+    def cost_retrieve(self, risk: float, expected_gain: float) -> float:
         """Expected cost of retrieving, including retrieval latency."""
         ...
 
-    def cost_ask(self, uncertainty: float) -> float:
+    def cost_ask(self, risk: float) -> float:
         """Expected cost of querying the operator, including their latency."""
         ...
 

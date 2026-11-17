@@ -16,18 +16,25 @@ and why it is needed.
 
 ## Status
 
-Skeleton. Interfaces and the experiment harness are in place; backbone,
-retrieval and cost-model implementations are stubs that run end to end and
-produce valid manifests, so the plumbing can be validated before the science
-lands.
+Research prototype, running end to end in Gazebo with a learned backbone.
 
-Expect a success rate of zero on the synthetic simulator. The placeholder
-backbone is not goal-directed — the goal pose is used only for scoring and is
-deliberately never given to the policy — so a blind heuristic reaching it would
-be an accident. Zero here means the harness is behaving correctly, not that it
-is broken. What the smoke run does validate is that all three arbitration paths
-execute, that the ask budget is enforced, that every step records all three
-prices, and that the manifest is complete.
+- **Backbone:** a navigation SmolVLA fine-tuned on alley demonstrations, served
+  by `scripts/policy_server.py` (`docs/vla-integration.md`, `docs/backbones.md`).
+- **Memory and arbitration:** text and spatial retrieval, stage-aware hygiene,
+  and the cost model of `docs/cost-model.md`, including remembered warnings as
+  risk evidence (`memory_risk`).
+- **The five conditions** run in Gazebo from config files; results and the
+  commits that produced them are in `training/results/RESULTS.md`.
+- **Hidden hazards** (`docs/hazards.md`): the scenario in which the choice
+  matters. In Gazebo, carma matches unconditional retrieval (7/8) with 17%
+  fewer retrievals; the backbone alone and ask-only enter the hazard every time.
+- **Robot readiness** (`docs/robot-readiness.md`): safety gate, pose from the
+  robot's own sensors and stall detection are built; the robot interface and
+  on-demand operator questions are not.
+
+The synthetic simulator (`configs/experiment/smoke.yaml`) remains for fast
+tests; its placeholder backbone is not goal-directed, so a success rate of zero
+there is expected.
 
 ## Install
 
@@ -57,14 +64,16 @@ docker compose -f docker/compose.yaml --profile sim up --build sim
 ```
 
 It comes up headless and publishes the robot side of the topic contract —
-stereo pair, depth, odometry — and drives on `/carma/cmd_vel`. Step-by-step
+stereo pair, depth, odometry, IMU — and takes drive requests on
+`/carma/cmd_vel_request`, which the safety gate passes to `/carma/cmd_vel`. Step-by-step
 instructions, including how to drive it, view the cameras and open the Gazebo
 window, are in section 8 of `HOW_TO_USE.md`. The world and robot geometry are
 documented in `ros2_ws/src/carma_sim/README.md`. `arm:=true` adds the SO-101
 pick-up arm on the front of the vehicle (`docs/arm.md`).
 
-The library cannot yet run an episode against it: `GazeboAdapter` and the
-bridge synchroniser are stubs, so experiments still use `sim.kind=synthetic`.
+Experiments run against it with `sim.kind: gazebo` in lockstep mode; see
+`docs/simulation.md` and `configs/experiment/gazebo_study/` and
+`configs/experiment/hazard_study/`.
 
 ## Conditions
 
@@ -86,7 +95,8 @@ vr/unity/         Meta Quest 2 client (Unity 6, Meta XR SDK) — see vr/unity/RE
 configs/          every experiment is a config file, not a CLI flag
 config/           stereo camera calibration
 experiments/      recorded measurements behind published figures
-docs/             architecture, interfaces, cost model, data schema
+docs/             architecture, cost model, hazards, simulation, robot readiness
+training/         fine-tuning, dataset builders, splits and recorded results
 tests/            unit suite, plus architecture and determinism gates
 scripts/          host-side tools: camera, microphone, policy server, stereo, gates
 ```

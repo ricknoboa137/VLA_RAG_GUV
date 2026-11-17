@@ -42,6 +42,17 @@ def stall_rate(episodes: Sequence[EpisodeRecord]) -> float:
     return sum(1 for e in episodes if e.stalled) / len(episodes)
 
 
+def hazard_rate(episodes: Sequence[EpisodeRecord]) -> float:
+    """Fraction of episodes that ended inside a hidden hazard, in ``[0, 1]``.
+
+    The hazards are invisible to the camera, so this is the failure only
+    operator knowledge, asked for or remembered, can prevent.
+    """
+    if not episodes:
+        return 0.0
+    return sum(1 for e in episodes if e.entered_hazard) / len(episodes)
+
+
 def navigation_error(episodes: Sequence[EpisodeRecord]) -> float:
     """Mean metres between final pose and goal, over all episodes.
 

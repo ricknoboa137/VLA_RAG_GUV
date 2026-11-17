@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from carma.types.core import EpisodeSpec, PhenologyStage, Pose
+from carma.types.core import EpisodeSpec, Hazard, PhenologyStage, Pose
 
 
 def synthetic_episodes(
@@ -62,6 +62,11 @@ def row_alley_episodes(
     start_yaw_rad: float = 0.2,
     success_radius_m: float = 1.5,
     max_steps: int = 400,
+    hazard_probability: float = 0.0,
+    hazard_keep_out_m: float = 1.0,
+    hazard_stop_before_m: float = 2.0,
+    hazard_min_x_m: float = 6.0,
+    hazard_x_m: float | None = None,
 ) -> tuple[EpisodeSpec, ...]:
     """Generate ``count`` reproducible down-the-alley episodes from ``rng``.
 
@@ -74,6 +79,18 @@ def row_alley_episodes(
     heading error in ``[-start_yaw_rad, start_yaw_rad]``, so the policy has to
     correct itself rather than replay one straight drive. ``shortest_path_length``
     is the straight line from the start to the goal.
+
+    With ``hazard_probability`` > 0, each episode has that chance of a hidden
+    hazard (:class:`~carma.types.core.Hazard`) on the centreline, at a whole
+    metre in ``[hazard_min_x_m, length - 1]``. The instruction still names the
+    full distance; the goal moves to the stop point ``hazard_stop_before_m``
+    before the hazard, and the hazard's advice says so ("wet patch at 8
+    metres: stop at 6 metres"). Only the operator, asked or remembered, knows
+    it. ``hazard_x_m`` fixes the hazard at one place for every episode that
+    has it, the way a wet patch stays where it is from one pass to the next;
+    that is what lets memory from an earlier pass help a later one. At
+    probability 0 no extra numbers are drawn, so existing configs keep
+    producing exactly the episodes they did.
     """
     specs: list[EpisodeSpec] = []
     for i in range(count):
@@ -84,6 +101,21 @@ def row_alley_episodes(
             float(rng.uniform(-start_yaw_rad, start_yaw_rad)),
         )
         goal = Pose(length, 0.0, 0.0)
+        hazards: tuple[Hazard, ...] = ()
+        if hazard_probability > 0.0 and rng.random() < hazard_probability:
+            if hazard_x_m is not None:
+                hx = float(hazard_x_m)
+            else:
+                hx = float(rng.integers(int(hazard_min_x_m), int(length)))  # up to length - 1
+            stop = hx - hazard_stop_before_m
+            hazards = (
+                Hazard(
+                    position=Pose(hx, 0.0, 0.0),
+                    keep_out_m=hazard_keep_out_m,
+                    advice=f"wet patch at {hx:.0f} metres: stop at {stop:.0f} metres",
+                ),
+            )
+            goal = Pose(stop, 0.0, 0.0)
         specs.append(
             EpisodeSpec(
                 episode_id=f"row-{i:03d}",
@@ -94,6 +126,7 @@ def row_alley_episodes(
                 shortest_path_length=start.distance_to(goal),
                 stage=stage,
                 max_steps=max_steps,
+                hazards=hazards,
             )
         )
     return tuple(specs)

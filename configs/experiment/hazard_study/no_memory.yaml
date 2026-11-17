@@ -1,0 +1,92 @@
+# Hazard study, condition no_memory (configs/condition/no_memory.yaml).
+# The five files in this folder are byte-identical except for `condition`,
+# `arbiter` and `hygiene`, like configs/experiment/gazebo_study/. What differs
+# from that study: every alley has a hidden wet patch at x = 8 m that the
+# camera cannot see (route.hazard_*), the right outcome is to stop at 6 m, and
+# only the operator knows it. The operator volunteers its warning in half the
+# episodes (hazard_warning_rate) and gives it when asked; memory is spatial
+# (retriever.kind: spatial), so a warning given in one pass is found at the
+# same place in the next. Random generic corrections are off, so memory holds
+# only what concerns the hazard. Backbone: a navigation SmolVLA trained on
+# demonstrations that include operator context (docs/hazards.md), served by
+#   python scripts/policy_server.py --policy navvla --checkpoint <pretrained_model>
+# World: lockstep:=true at stage VEGETATIVE (docs/simulation.md).
+name: hazard_study
+condition: no_memory
+seed: 0
+episodes: 8
+
+# Down the clear alley of the row-crop world, from a jittered start (see
+# carma.runtime.episodes.row_alley_episodes).
+route:
+  kind: row_alley
+  params:
+    min_length_m: 10.0
+    max_length_m: 14.0
+    max_steps: 350
+    hazard_probability: 1.0
+    hazard_x_m: 8.0
+
+backbone:
+  kind: remote
+  params:
+    url: http://127.0.0.1:8000/act
+    timeout_s: 60.0
+    # Four sampled action chunks per step; their spread is the uncertainty the
+    # arbiter prices. One sample would report uncertainty 1.0 at every step.
+    samples: 4
+    send_depth: false
+    send_right: false
+
+embedder:
+  kind: hashing
+  params:
+    dim: 256
+
+store:
+  kind: in_memory
+
+retriever:
+  kind: spatial
+  params:
+    # Warnings are given from 6 m before the patch (x >= 2); the stop point is
+    # at 6 m, 4 m on. An 8 m radius scores a warning given at x = 2 at 0.5
+    # there, so the arbiter's probe sees retrieval as worth its price.
+    radius_m: 8.0
+    min_score: 0.15
+
+hygiene:
+  kind: none
+
+cost_model:
+  kind: linear
+  params:
+    recovery_s: 45.0
+    retrieval_s: 0.12
+    operator_s: 20.0
+    retrieval_efficacy: 0.6
+    ask_efficacy: 0.95
+    # rho: chance that a remembered warning at this place still marks a real
+    # risk. Not yet estimated from data; 0.5 is a stated placeholder
+    # (docs/cost-model.md). 0 would give the original model.
+    memory_risk: 0.5
+
+arbiter:
+  kind: always_act
+
+operator:
+  kind: scripted
+  params:
+    mean_latency_s: 18.0
+    correction_rate: 0.0
+    hazard_warning_rate: 0.5
+    seed: 0
+
+sim:
+  kind: gazebo
+  params:
+    control_hz: 10.0
+    stage: VEGETATIVE
+    timeout_s: 120.0
+    bridge_url: 127.0.0.1
+    bridge_port: 5555

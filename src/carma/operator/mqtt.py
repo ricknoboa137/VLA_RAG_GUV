@@ -124,6 +124,11 @@ class MqttOperator:
             msg = f"mqtt operator did not connect to {broker}:{port} in {connect_timeout_s} s"
             raise OperatorUnavailableError(msg)
 
+    @property
+    def operator_id(self) -> str:
+        """Provenance recorded on everything this operator says."""
+        return self._operator_id
+
     def _on_connect(
         self, client: Any, userdata: Any, flags: Any, reason_code: Any, properties: Any
     ) -> None:

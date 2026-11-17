@@ -12,7 +12,8 @@ Runs in the ``carma-train`` environment (needs LeRobot). Reads what
   frame with the start pose included.
 * ``action``: ``[linear_mps, angular_radps, stop]``; ``stop`` is 0 or 1 and a
   serving adapter thresholds it at 0.5.
-* ``task``: the episode's instruction text.
+* ``task``: the step's task text (instruction plus any operator context in
+  force, schema 2), or the episode's instruction for schema-1 recordings.
 
 The *label* (the expert's command) is the action, never the disturbed command
 that was executed, so recovery from disturbed states is what gets learned.
@@ -86,7 +87,7 @@ def convert(demos: Path, out: Path, repo_id: str, stop_hold: int = 0) -> tuple[i
                     IMAGE_KEY: cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB),
                     "observation.state": np.asarray(step["pose"], dtype=np.float32),
                     "action": np.asarray([linear, angular, float(stop)], dtype=np.float32),
-                    "task": meta["instruction"],
+                    "task": step.get("task", meta["instruction"]),
                 }
             )
             frames += 1
@@ -97,7 +98,7 @@ def convert(demos: Path, out: Path, repo_id: str, stop_hold: int = 0) -> tuple[i
                             IMAGE_KEY: cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB),
                             "observation.state": np.asarray(step["pose"], dtype=np.float32),
                             "action": np.asarray([linear, angular, 1.0], dtype=np.float32),
-                            "task": meta["instruction"],
+                            "task": step.get("task", meta["instruction"]),
                         }
                     )
                     frames += 1

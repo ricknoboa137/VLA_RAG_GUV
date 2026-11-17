@@ -16,6 +16,7 @@ from carma.metrics.retrieval import retrieval_rate
 from carma.metrics.systems import decision_latency_summary
 from carma.metrics.task import (
     collision_rate,
+    hazard_rate,
     navigation_error,
     spl,
     stall_rate,
@@ -39,6 +40,7 @@ class MetricBundle:
     success_rate: float
     collision_rate: float
     stall_rate: float
+    hazard_rate: float
     navigation_error_m: float
     spl: float
     queries_per_100m: float
@@ -63,6 +65,7 @@ def summarise(
         success_rate=success_rate(episodes),
         collision_rate=collision_rate(episodes),
         stall_rate=stall_rate(episodes),
+        hazard_rate=hazard_rate(episodes),
         navigation_error_m=navigation_error(episodes),
         spl=spl(episodes),
         queries_per_100m=queries_per_100m(episodes),
