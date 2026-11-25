@@ -66,6 +66,26 @@ double-counts the other; scaled by `rho`, because an old warning can be wrong
 (the patch dried up), which is what memory hygiene is for. With `rho = 0`
 every earlier configuration prices exactly as before.
 
+## Hygiene time base
+
+`stage_decay` staleness is
+`0.5 * min(stage_distance / 3, 1) + 0.2 * (1 - 0.5 ** (age_days / 30)) + 0.3 * d / (d + 25)`
+(default weights; `d` in metres). Age is measured on the **run clock**:
+simulated seconds since the start of the run, accumulated across its episodes.
+Episode `i` starts at the sum of the durations (last step's `t`) of episodes
+`0..i-1`, and the run clock at an observation is that offset plus `obs.t`.
+`MemoryEntry.created_at` is the run clock at ingest; `age_days` is
+`(run_t - created_at) / 86400`. The runtime passes `run_t` explicitly to
+`Retriever.ingest` and to `HygienePolicy.staleness` / `select_for_review`;
+nothing reads the wall clock, so `(config, seed, commit)` fixes every entry.
+
+Stage distance stays the dominant term by design: crop stage, not elapsed
+seconds, is what makes a correction wrong. A study run lasts minutes of
+simulated time, so against a 30-day half-life the age term is near zero within
+one run; it matters once a store persists over a season. Before this, ingest
+stamped Unix epoch seconds while staleness subtracted from `obs.t`, so age was
+always clamped to 0 and the age term never contributed.
+
 ## Changing this file
 
 A change here invalidates every result produced under the old model. The commit

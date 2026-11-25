@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import time
-
 import numpy as np
 import pytest
 
@@ -88,7 +86,7 @@ def test_retriever_ingests_and_finds(observation: Observation) -> None:
         observation=observation,
         operator_id="op-0",
     )
-    entry = retriever.ingest(correction)
+    entry = retriever.ingest(correction, run_t=0.0)
     result = retriever.retrieve(observation, k=3)
 
     assert entry.entry_id in {e.entry_id for e in result.entries}
@@ -107,7 +105,9 @@ def test_staleness_rises_with_stage_distance(observation: Observation) -> None:
     hygiene = StageDecayHygiene()
     same = _entry("same", "x", emb, stage=PhenologyStage.VEGETATIVE)
     far = _entry("far", "x", emb, stage=PhenologyStage.BARE_SOIL)
-    assert hygiene.staleness(far, observation) > hygiene.staleness(same, observation)
+    assert hygiene.staleness(far, observation, run_t=0.0) > hygiene.staleness(
+        same, observation, run_t=0.0
+    )
 
 
 def test_staleness_rises_with_distance(observation: Observation) -> None:
@@ -116,7 +116,9 @@ def test_staleness_rises_with_distance(observation: Observation) -> None:
     hygiene = StageDecayHygiene()
     near = _entry("near", "x", emb, pose=Pose(0.0, 0.0, 0.0))
     far = _entry("far", "x", emb, pose=Pose(100.0, 0.0, 0.0))
-    assert hygiene.staleness(far, observation) > hygiene.staleness(near, observation)
+    assert hygiene.staleness(far, observation, run_t=0.0) > hygiene.staleness(
+        near, observation, run_t=0.0
+    )
 
 
 def test_stage_decay_weights_must_sum_to_one() -> None:
@@ -128,7 +130,46 @@ def test_stage_decay_weights_must_sum_to_one() -> None:
 def test_no_hygiene_ablation_is_inert(observation: Observation) -> None:
     """The ablation reports nothing stale and selects nothing for review."""
     emb = HashingEmbedder(dim=32)
-    entry = _entry("a", "x", emb, created_at=time.time() - 10_000_000)
+    entry = _entry("a", "x", emb, created_at=0.0)
     hygiene = NoHygiene()
-    assert hygiene.staleness(entry, observation) == 0.0
-    assert hygiene.select_for_review((entry,), observation, 5) == ()
+    assert hygiene.staleness(entry, observation, run_t=10_000_000.0) == 0.0
+    assert hygiene.select_for_review((entry,), observation, 5, run_t=10_000_000.0) == ()
+
+
+def test_staleness_hand_computed_age_on_run_clock(observation: Observation) -> None:
+    """Age is run_t minus created_at, both simulated seconds on the run clock.
+
+    Entry at the observation's stage and pose, so only the age term is live.
+    Defaults: age_weight 0.2, half-life 30 days. At 30 days the age term is
+    1 - 0.5 = 0.5, so staleness = 0.2 * 0.5 = 0.1; at 60 days 0.2 * 0.75 = 0.15.
+    """
+    emb = HashingEmbedder(dim=32)
+    hygiene = StageDecayHygiene()
+    day = 86_400.0
+    entry = _entry(
+        "a", "x", emb, created_at=5.0 * day, pose=observation.pose, stage=observation.stage
+    )
+    assert hygiene.staleness(entry, observation, run_t=5.0 * day) == pytest.approx(0.0)
+    assert hygiene.staleness(entry, observation, run_t=35.0 * day) == pytest.approx(0.1)
+    assert hygiene.staleness(entry, observation, run_t=65.0 * day) == pytest.approx(0.15)
+    # Age is measured on the run clock, not on obs.t (seconds into the episode).
+    assert hygiene.staleness(entry, observation, run_t=3.0 * day) == pytest.approx(0.0)
+
+
+def test_ingest_is_deterministic_and_stamps_run_clock(observation: Observation) -> None:
+    """Two identical ingests give identical ids and the run_t they were given."""
+
+    def ingest_twice() -> list[tuple[str, float]]:
+        retriever = SimilarityRetriever(min_score=0.0)
+        retriever.bind(HashingEmbedder(dim=64), InMemoryStore())
+        out = []
+        for run_t in (12.5, 340.0):
+            c = Correction(text="keep left", observation=observation, operator_id="op-0")
+            e = retriever.ingest(c, run_t=run_t)
+            out.append((e.entry_id, e.created_at))
+        return out
+
+    first = ingest_twice()
+    assert first == ingest_twice()
+    assert [t for _, t in first] == [12.5, 340.0]
+    assert len({i for i, _ in first}) == 2

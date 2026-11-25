@@ -118,8 +118,12 @@ class Retriever(Protocol):
         """Retrieve up to ``k`` entries relevant to ``obs``."""
         ...
 
-    def ingest(self, correction: Correction) -> MemoryEntry:
-        """Convert an operator correction into a stored entry."""
+    def ingest(self, correction: Correction, *, run_t: float) -> MemoryEntry:
+        """Convert an operator correction into a stored entry.
+
+        ``run_t`` is the run clock in simulated seconds (see ``MemoryEntry``)
+        and becomes the entry's ``created_at``.
+        """
         ...
 
 
@@ -127,8 +131,11 @@ class Retriever(Protocol):
 class HygienePolicy(Protocol):
     """Decides which entries have gone stale and which to put to the operator."""
 
-    def staleness(self, entry: MemoryEntry, obs: Observation) -> float:
-        """Staleness in ``[0, 1]``; 1.0 means certainly no longer applicable."""
+    def staleness(self, entry: MemoryEntry, obs: Observation, *, run_t: float) -> float:
+        """Staleness in ``[0, 1]``; 1.0 means certainly no longer applicable.
+
+        ``run_t`` is the run clock, in simulated seconds, at ``obs``.
+        """
         ...
 
     def select_for_review(
@@ -136,6 +143,8 @@ class HygienePolicy(Protocol):
         entries: tuple[MemoryEntry, ...],
         obs: Observation,
         budget: int,
+        *,
+        run_t: float,
     ) -> tuple[MemoryEntry, ...]:
         """Choose at most ``budget`` entries worth an operator confirmation."""
         ...

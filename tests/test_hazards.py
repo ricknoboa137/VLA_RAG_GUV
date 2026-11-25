@@ -131,7 +131,7 @@ def _retriever(radius_m: float = 4.0) -> SpatialRetriever:
 
 def test_spatial_scores_fall_linearly_with_distance() -> None:
     r = _retriever(radius_m=4.0)
-    r.ingest(Correction(text=_HAZARD.advice, observation=_obs(4.0), operator_id="s"))
+    r.ingest(Correction(text=_HAZARD.advice, observation=_obs(4.0), operator_id="s"), run_t=0.0)
     # 1 m away: 1 - 1/4 = 0.75. 3 m away: 0.25. 5 m away: beyond the radius.
     assert r.retrieve(_obs(5.0), 3).scores == pytest.approx((0.75,))
     assert r.retrieve(_obs(1.0), 3).scores == pytest.approx((0.25,))
@@ -141,7 +141,7 @@ def test_spatial_scores_fall_linearly_with_distance() -> None:
 def test_spatial_ties_keep_insertion_order_and_k_is_respected() -> None:
     r = _retriever()
     for text in ("first", "second", "third"):
-        r.ingest(Correction(text=text, observation=_obs(4.0), operator_id="s"))
+        r.ingest(Correction(text=text, observation=_obs(4.0), operator_id="s"), run_t=0.0)
     result = r.retrieve(_obs(4.0), 2)
     assert [e.text for e in result.entries] == ["first", "second"]
     assert result.scores == pytest.approx((1.0, 1.0))
@@ -240,7 +240,9 @@ def test_entry_ids_are_reproducible() -> None:
     def ids() -> list[str]:
         r = _retriever()
         return [
-            r.ingest(Correction(text=f"c{i}", observation=_obs(float(i)), operator_id="s")).entry_id
+            r.ingest(
+                Correction(text=f"c{i}", observation=_obs(float(i)), operator_id="s"), run_t=0.0
+            ).entry_id
             for i in range(3)
         ]
 

@@ -82,7 +82,9 @@ class HttpTransport:
             raise ValueError(msg)
         self._url = url
         self._attempts = attempts
-        self._open: Callable[..., Any] = opener if opener is not None else urllib.request.urlopen
+        self._open: Callable[..., Any] = urllib.request.urlopen
+        if opener is not None:
+            self._open = opener
 
     def post(self, payload: dict[str, object], timeout_s: float) -> dict[str, object]:
         """POST ``payload`` as JSON and parse the reply."""
