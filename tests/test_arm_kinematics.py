@@ -14,9 +14,9 @@ constants deliberately if the real arm's definition changes.
 
 Geometry is not compared. The model draws links as primitives, which is a
 presentation choice. What is compared is everything that decides where a link
-is for a given set of joint angles: origins, axes, limits and masses of the
-five arm joints. The gripper is checked separately, because the arm in this
-project carries a parallel gripper rather than the URDF's hinged jaw.
+is for a given set of joint angles: origins, axes, limits and masses of all six
+joints, the hinged gripper included. ``test_arm_gripper.py`` checks the
+gripper's meshes, grasp frame and controller.
 """
 
 from __future__ import annotations
@@ -66,6 +66,13 @@ _URDF_JOINTS = {
         -2.74385,
         2.84121,
     ),
+    "gripper": (
+        "moving_jaw_link",
+        (0.0202, 0.0188, -0.0234),
+        (1.5708, -5.24284e-08, -1.41553e-15),
+        -0.174533,
+        1.74533,
+    ),
 }
 _ARM_CHAIN = tuple(_URDF_JOINTS)
 
@@ -77,6 +84,7 @@ _URDF_MASSES = {
     "lower_arm_link": 0.104,
     "wrist_link": 0.079,
     "gripper_link": 0.087,
+    "moving_jaw_link": 0.012,
 }
 
 
@@ -165,6 +173,7 @@ def test_each_link_hangs_from_the_link_the_urdf_says(model: _Model) -> None:
         "lower_arm_link": "upper_arm_link",
         "wrist_link": "lower_arm_link",
         "gripper_link": "wrist_link",
+        "moving_jaw_link": "gripper_link",
     }
     for joint, (child, *_rest) in _URDF_JOINTS.items():
         _, _, parent = model.link_pose(child)
@@ -198,7 +207,7 @@ def test_link_mass_matches_the_urdf(model: _Model, link: str) -> None:
 
 
 def test_the_last_arm_frame_lands_where_the_urdf_puts_it(model: _Model) -> None:
-    """The decisive check: for random joint angles, both chains place the wrist alike."""
+    """The decisive check: for random joint angles, both chains place the moving jaw alike."""
     sdf = _sdf_origins(model)
     urdf = {joint: (xyz, rpy) for joint, (_c, xyz, rpy, _lo, _hi) in _URDF_JOINTS.items()}
     rng = np.random.default_rng(0)
@@ -215,5 +224,5 @@ def test_the_last_arm_frame_lands_where_the_urdf_puts_it(model: _Model) -> None:
 
     # The URDF prints 1e-8 and 1e-17 noise in some origins; micrometres is far
     # below anything the arm, the servos or a camera could resolve.
-    assert worst_position < 1e-6, f"wrist position differs by {worst_position:.2e} m"
-    assert worst_rotation < 1e-5, f"wrist orientation differs by {worst_rotation:.2e}"
+    assert worst_position < 1e-6, f"jaw position differs by {worst_position:.2e} m"
+    assert worst_rotation < 1e-5, f"jaw orientation differs by {worst_rotation:.2e}"

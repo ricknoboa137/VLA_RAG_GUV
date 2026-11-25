@@ -223,23 +223,11 @@ def test_the_compared_models_share_units_cameras_and_uncertainty(arm: ModuleType
             assert other.uncertainty == first.uncertainty
 
 
-def _gripper_relay() -> ModuleType:
-    """The relay that owns the ``gripper`` command range; plain Python, no ROS needed."""
-    path = _ROOT / "ros2_ws" / "src" / "carma_sim" / "scripts" / "gripper_relay.py"
-    spec = importlib.util.spec_from_file_location("gripper_relay", path)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
 def test_spec_joint_maps_end_at_the_simulated_arms_limits(arm: ModuleType) -> None:
     """The radians a model is mapped to are the ones the Gazebo arm accepts.
 
-    The five arm joints are revolute in the SDF, with the URDF's limits. The
-    gripper is not: the simulated gripper is two prismatic fingers, and the
-    ``gripper`` command in radians that clients send is translated by
-    ``gripper_relay.py``, which therefore owns that range.
+    All six joints, the hinged gripper included, are revolute in the SDF with
+    the URDF's limits, so each spec's map must end exactly there.
     """
     sdf = _ARM_SDF.read_text(encoding="utf-8")
     pattern = (
@@ -249,7 +237,5 @@ def test_spec_joint_maps_end_at_the_simulated_arms_limits(arm: ModuleType) -> No
     limits = {
         name: (float(lo), float(hi)) for name, lo, hi in re.findall(pattern, sdf, flags=re.DOTALL)
     }
-    relay = _gripper_relay()
-    limits["gripper"] = (relay.GRIPPER_CLOSED_RAD, relay.GRIPPER_OPEN_RAD)
     for joint in arm.load_spec(_SPECS[0]).joints:
         assert joint.rad == pytest.approx(limits[joint.name]), joint.name

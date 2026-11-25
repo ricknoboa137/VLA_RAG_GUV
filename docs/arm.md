@@ -51,77 +51,50 @@ arm holds its poses once the camera is mounted.
 
 ## The gripper
 
-The arm carries the GrabCAD **parallel gripper**, not the hinged jaw of the
-standard SO-101 that LeRobot's URDF describes. A micro servo turns a pinion that
-drives two racks, so the two fingers slide in opposite directions along a rail.
-That changes the joints: the standard arm has one revolute `gripper`, this one
-has two prismatic fingers.
-
-The simulation models it that way, from the project's own CAD
-(`SO101 Assembly new2.stp`, assembly `gripper v3`):
+The follower is built with the **standard SO-101 hinged gripper**: the fixed
+jaw is the printed `wrist_roll_follower` part, which holds the gripper servo,
+and the moving jaw swings about that servo's horn. That is the gripper the
+official URDF and LeRobot describe, so there is one revolute joint, `gripper`,
+everywhere: on the real arm, in the VLA configs under `configs/arm_policy/`
+(which map a policy's 0..100 onto it), in `carma_vla`, and in Gazebo.
 
 | | |
 |---|---|
-| Joints | `gripper_plus`, `gripper_minus`, prismatic, opening in opposite directions along `gripper_link` x |
-| Gap between the fingertips, closed | 15.4 mm (CAD: 15.5 mm) |
-| Stroke per finger | 14 mm, so 43.4 mm fully open |
-| Fingertips reach | 111 mm past the wrist-roll plane |
-| Grasp frame | 101 mm out, on the roll axis, in the distal 20 mm of the fingertips |
-| Reach, shoulder-lift axis to the grasp frame | 0.4135 m, against 0.4108 m for the standard jaw |
-| Finger mass | 20.7 g each: CAD volume times an assumed PLA density of 1240 kg/m^3 |
+| Joint | `gripper`, revolute about the servo horn, the URDF's origin and axis |
+| Range | -0.174533 rad (closed) to 1.74533 rad (fully open), -10° to +100° |
+| Moving jaw mass | 12 g (URDF) |
+| Gripper body mass | 87 g, fixed jaw with its servo (URDF) |
+| Grasp frame | `gripper_frame`, the URDF's `gripper_frame_link`, between the jaw tips |
+| Reach, shoulder-lift axis to the grasp frame | 0.411 m |
 
-The five arm joints are unchanged and are pinned to the official URDF by
-`tests/test_arm_kinematics.py`; the gripper is pinned to the CAD data by
-`tests/test_arm_gripper.py`.
+`tests/test_arm_kinematics.py` pins the joint's origin, axis, limits and the
+jaw's mass to the official URDF with the five arm joints, and
+`tests/test_arm_gripper.py` checks the meshes, the grasp frame, the controller
+and the topics.
 
-**What this means for the pick.** The CAD pose is the *closed* limit: sliding
-either finger inward by 1 mm makes it interfere with the other, so the fingertips
-never get closer than 15.4 mm and nothing thinner can be held. Fully open they are
-43.4 mm apart, which clears the 40 mm block in the platform plan by only 1.7 mm a
-side. That is tight for a gripper positioned by a camera, and it rests on the
-stroke below, which is an estimate.
+**Meshes.** The three gripper parts are drawn from the URDF's own meshes of
+the printed parts and the servo, vendored unmodified in
+`carma_sim/models/so101_follower/meshes/` (Apache-2.0; provenance and checksums
+in the README there). At full detail they are 76 146 triangles, which cost
+the row-crop world about a third of its speed, so the simulation uses two
+light derivatives that `carma_sim/tools/build_gripper_geometry.py` makes from
+them: the meshes simplified on a 1.5 mm grid for drawing (about 7 000
+triangles, indistinguishable at camera distance), and boxes for collision, one
+per slab along each jaw (8 per jaw) and one for the servo, which are also what
+grasping wants: box contacts are cheap and stable, triangle meshes are neither.
+The tests rebuild both and fail on any difference.
 
-**The old interface survives.** Everything outside the simulator was written
-against one joint named `gripper`, commanded in radians from -0.174533 (closed)
-to 1.74533 (open): the VLA configs under `configs/arm_policy/` map a policy's
-0..100 gripper onto exactly that range, and `carma_vla` addresses the joint by
-name. So `carma_sim/scripts/gripper_relay.py` translates at the boundary. A
-command on `/carma/arm/gripper/cmd_pos` becomes a finger travel for both fingers,
-and the two finger joints are folded back into one `gripper` entry on
-`/carma/arm/joint_states`. The mapping is linear, so "50 % open" is a gripper half
-open. The angle is a scale, not a physical rotation.
+**Controller.** The jaw is light, 1.6e-5 kg m^2 about its hinge, about a
+hundredth of what the arm joints carry, so it has its own gains (P 4, I 1,
+D 0.005, with the joint's own damping doing most of the settling). With the arm
+joints' gains the controller's D term alone would be unstable at the world's
+1 ms step; `tests/test_arm_gripper.py` checks the margin.
 
-**What was assumed, and what to check on the printed part.** The CAD says how the
-gripper is built, not how it is bolted to this arm, so three things are
-assumptions (recorded in `gripper_boxes.json`):
-
-1. The wrist-roll axis runs along the CAD y axis through x = 30 mm, z = 20 mm,
-   the centre of the wrist block and base plate.
-2. The back face of the wrist block is the wrist-roll horn plane, which the URDF
-   puts at `gripper_link` z = 0. A sanity check: the fingertips then end 111 mm out
-   and the grasp frame 101 mm, against the standard gripper's 98 mm, which is
-   what a drop-in replacement should give.
-3. The fingers open along `gripper_link` x, the plane the URDF's jaw swings in.
-
-The stroke is also an estimate: no interference with any fixed part up to 12 mm
-outward, and 14 mm keeps each rack engaged with the pinion, but the real limit is
-set by the printed rack's teeth. Measure the closed gap, the open gap and the
-distance from the horn plane to the fingertips on the print, and update
-`mechanism` and `frame` in the JSON.
-
-**Where the shape comes from.** `models/so101_follower/gripper_boxes.json` holds
-272 axis-aligned boxes sampled from the CAD: 3 mm cells for the wrist block and
-base plate, 2 mm for the rail and racks, 1 mm for the fingertips, because their
-inner faces set the grip gap. Only the parts that show are drawn; the servo,
-pinion and horn sit inside the body. `tools/gripper_from_step.py` rebuilds the
-JSON from the STEP file (it needs `pip install cadquery-ocp`, which is not a
-project dependency, and reproduces the committed file exactly), and
-`tools/build_gripper_sdf.py` generates `model.sdf` from the JSON.
-
-**Licence.** The SO-101 is Apache-2.0. This community gripper's licence was not
-checked, and the boxes are a coarse resampling of its shape. Confirm the
-author's licence before this repository is shared outside the project; AGENTS.md
-section 2.1 asks that everything in it be redistributable.
+**Earlier model.** Until 2026-11-25 the simulation carried a rack-and-pinion
+parallel gripper from GrabCAD, as two prismatic fingers drawn as boxes, with a
+relay node translating the `gripper` command. The assembled follower has the
+standard jaw, so that model, its relay and its CAD tools were removed; they are
+in the git history before that date.
 
 ## In simulation
 
@@ -142,39 +115,46 @@ plus `models/so101_follower` on a plate over the front guard. Topics:
 | `/carma/arm/stereo/{left,right}/camera_info` | `sensor_msgs/CameraInfo` | arm stereo camera |
 
 Joints: `shoulder_pan`, `shoulder_lift`, `elbow_flex`, `wrist_flex`,
-`wrist_roll`, `gripper`. For the first five, frames, limits and masses are the
+`wrist_roll`, `gripper`. For all six, frames, limits and masses are the
 URDF's, so joint angles mean the same thing in a LeRobot recording and in
-Gazebo. `gripper` is the one joint clients see; underneath it are two prismatic
-fingers (see above). The arm links are drawn as cylinders rather than the
-printed-part meshes, and the gripper as boxes.
+Gazebo. The arm links are drawn as cylinders rather than the printed-part
+meshes; the gripper is drawn from light copies of the URDF's meshes and collides
+as boxes (see above).
 
 ```bash
 ros2 topic pub --once /carma/arm/shoulder_lift/cmd_pos std_msgs/msg/Float64 '{data: -0.8}'
+ros2 topic pub --once /carma/arm/gripper/cmd_pos std_msgs/msg/Float64 '{data: 1.2}'
 ros2 topic echo /carma/arm/joint_states --field position
 ```
 
 The simulated body is the larger photographed platform, not the CAD, so the
 arm sits higher there and reaches about 0.13 m past the guard. Use the
 simulation for control and for what the cameras see, not for reach numbers.
-Checked running in Gazebo Harmonic (2026-10-23, headless, software rendering):
-the arm holds its pose with nothing commanded (under 0.002 rad of drift in 3 s);
-the gripper reaches a command within 0.12 s and lands within 0.015 rad of it, at
-both ends and in the middle, with the fingers 0.2 mm off their targets in
-opposite directions, which is gravity along the finger axis; over-range commands
-clamp; both cameras stream; and the vehicle drives at 0.292 m/s per simulated
-second against 0.300 commanded.
+Checked running in Gazebo Harmonic (headless, software rendering). On
+2026-10-23: both arm cameras stream, and the vehicle drives at 0.292 m/s per
+simulated second against 0.300 commanded. On 2026-11-25, with the hinged
+gripper: from a step command the jaw comes within 0.01 rad of fully open or
+closed in about 0.3 s (the servo's 4.7 rad/s over the 1.92 rad stroke) and
+then holds there; a half-open command lands within 0.003 rad; over-range
+commands clamp at the joint limit; with nothing commanded the arm drifts under
+0.005 rad in 1.8 s; and through the launch file the ROS command reaches the jaw
+and `/carma/arm/joint_states` reports it as `gripper`.
 
-**It slows the simulator.** On this laptop the real-time factor is 0.57 without
-the arm, 0.33 with the arm and its earlier cylinder-and-hinge gripper, and 0.28
-with the box gripper. The arm's extra camera pair accounts for most of that; the
-boxes cost about 15 % more. Distances covered in wall-clock time are therefore
-not comparable between runs with and without the arm, only per simulated second.
+**It slows the simulator.** Measured on this laptop on 2026-11-25 as simulated
+time over wall-clock time across a minute of running: 0.79 without the arm and
+0.45 with it. The same day the earlier box gripper gave 0.39, and the gripper
+drawn and collided with the full-detail meshes 0.29, which is why the simulation
+uses the light copies. Earlier figures (0.57, 0.33 and 0.28, from 2026-10-23)
+were read from Gazebo's instantaneous `real_time_factor`, which swings by a
+factor of fifty from one reading to the next here, so they are not comparable.
+Distances covered in wall-clock time are therefore not comparable between runs
+with and without the arm, only per simulated second.
 
 **The arm camera sees the gripper.** The camera pair sits above the gripper body,
 clear of it (the earlier mount would have been inside the new plate), and the
-right camera sees a fingertip at the edge of its frame while the left, 60 mm
-further out, does not. The mount position is still an estimate. A stereo pair in
-which only one eye sees a finger will mismatch there, so mask that edge before
+right camera sees the jaw tips at the edge of its frame (both jaws when closed,
+the fixed jaw when open) while the left, 60 mm further out, sees neither. The mount position is still an estimate. A stereo pair in
+which only one eye sees a jaw will mismatch there, so mask that edge before
 computing depth near it.
 
 ## On the real arm

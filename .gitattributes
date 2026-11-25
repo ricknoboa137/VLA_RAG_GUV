@@ -3,3 +3,6 @@
 Dockerfile text eol=lf
 *.py text eol=lf
 *.yaml text eol=lf
+# Binary meshes: never touched by line-ending conversion, so their checksums hold.
+*.stl binary
+*.STL binary

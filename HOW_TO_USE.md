@@ -721,7 +721,9 @@ untouched.
 | `carma_voice/test/test_audio.py` | Tests `audio.py` | Run with `colcon test` |
 | `carma_sim/worlds/row_crop.sdf` | The row-crop field, as a template expanded per crop stage | The simulated experimental world |
 | `carma_sim/models/carma_ugv/model.sdf`, `model.config` | The tractor-style UGV: body, wheels, stereo camera, depth camera, odometry | The simulated robot, shaped like the real one |
-| `carma_sim/models/so101_follower/model.sdf`, `model.config` | The SO-101 arm: six position-controlled joints from the official URDF, and the stereo camera it carries | The arm, testable before the real one is built |
+| `carma_sim/models/so101_follower/model.sdf`, `model.config` | The SO-101 arm: six position-controlled joints from the official URDF, the standard hinged gripper, and the stereo camera it carries | The arm in simulation, matching the assembled follower |
+| `carma_sim/models/so101_follower/meshes/` | The URDF's meshes of the three gripper parts (Apache-2.0), and in `visual/` the light copies the simulation draws | The gripper looks and grasps like the printed one |
+| `carma_sim/tools/build_gripper_geometry.py` | Makes the light visual meshes and the gripper's collision boxes from those meshes | Full-detail meshes cost about a third of the simulator's speed; the tests rebuild its output |
 | `carma_sim/models/carma_ugv_arm/model.sdf`, `model.config` | `carma_ugv` unchanged, plus the arm on a plate over the front guard | Spawned instead of `carma_ugv` with `arm:=true` |
 | `carma_sim/launch/row_crop.launch.py` | Expands the world for the chosen stage, then starts Gazebo, the ROS bridge and `bgr_relay` | Used by the `sim` service |
 | `carma_sim/config/bridge.yaml` | Maps Gazebo topics onto the ROS topic names | The simulator meets the same topic contract as the real robot |
