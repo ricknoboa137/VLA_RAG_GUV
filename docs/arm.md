@@ -49,6 +49,21 @@ primary view (`docs/vla-integration.md`); the world camera on the platform is
 the headset's. It moves the arm's centre of mass outward, so re-check that the
 arm holds its poses once the camera is mounted.
 
+It mounts on a printed bracket designed for this gripper (2026-11-25), which
+bolts to the fixed jaw's top face with the official wrist-camera adapter's two
+M3 screws and nuts, so no arm part is reprinted. The lens optical centres sit
+13.7 mm above that face and 60 mm apart across the jaws, and the camera looks
+along the jaws tilted 15° toward them, so both jaw tips appear low in each
+image with the space ahead above them. The simulation places its two cameras
+at exactly those lens positions. The bracket's design and checks live outside
+this repository, with the platform CAD.
+
+Field of view: the simulation uses 58.9° horizontal, from the measured
+calibration in `config/stereo_3dusb.json` (567.5 px focal length at 640 px).
+The module's listing says 100°, which that calibration contradicts, so the
+bracket's own field-of-view checks, done at 100°, are more generous than the
+real view; at 58.9° the jaw tips are still in frame (below).
+
 ## The gripper
 
 The follower is built with the **standard SO-101 hinged gripper**: the fixed
@@ -150,12 +165,13 @@ factor of fifty from one reading to the next here, so they are not comparable.
 Distances covered in wall-clock time are therefore not comparable between runs
 with and without the arm, only per simulated second.
 
-**The arm camera sees the gripper.** The camera pair sits above the gripper body,
-clear of it (the earlier mount would have been inside the new plate), and the
-right camera sees the jaw tips at the edge of its frame (both jaws when closed,
-the fixed jaw when open) while the left, 60 mm further out, sees neither. The mount position is still an estimate. A stereo pair in
-which only one eye sees a jaw will mismatch there, so mask that edge before
-computing depth near it.
+**The arm camera sees the gripper.** With the cameras at the bracket's lens
+positions (since 2026-11-25), both eyes see the jaw tips low in the frame: in the
+left eye the fixed-jaw tip sits at about (465, 350) of 640 x 480, where the
+bracket's geometry puts it, and with the jaw closed both tips are in view side by
+side; opened, the moving jaw swings out of the frame. The jaws block the bottom
+of each image, so mask them before computing depth there. The earlier mount, an
+estimate off to one side, showed the jaws to the right eye only.
 
 ## On the real arm
 

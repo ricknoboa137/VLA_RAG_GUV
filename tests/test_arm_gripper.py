@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import json
 import re
 import struct
 import xml.etree.ElementTree as ET
@@ -253,3 +254,59 @@ def test_the_jaw_controller_is_stable_at_the_worlds_step(sdf: ET.Element) -> Non
     )
     assert d_gain * dt / inertia < 0.5
     assert p_gain * dt**2 / inertia < 0.5
+
+
+# The stereo camera on the gripper, as the project's camera bracket mounts it:
+# each lens apex in gripper_link (from the bracket's lens apexes in the wrist
+# mesh frame, carried over by the URDF's wrist_roll_follower transform), 60 mm
+# apart across the jaws, looking along them tilted 15 deg toward them.
+_LENS_APEX = {"left": (-0.03, 0.03771, -0.03039), "right": (0.03, 0.03771, -0.03039)}
+_TILT_DEG = 15.0
+# The field of view comes from the measured calibration, not the module's listing.
+_CALIBRATION = Path("config/stereo_3dusb.json")
+
+
+def _arm_cameras(sdf: ET.Element) -> dict[str, ET.Element]:
+    return {
+        str(s.get("name")).removeprefix("arm_stereo_"): s
+        for s in sdf.iter("sensor")
+        if str(s.get("name")).startswith("arm_stereo_")
+    }
+
+
+def test_the_arm_cameras_sit_where_the_bracket_holds_the_lenses(sdf: ET.Element) -> None:
+    cameras = _arm_cameras(sdf)
+    assert sorted(cameras) == ["left", "right"]
+    gripper = next(link for link in sdf.iter("link") if link.get("name") == "gripper_link")
+    on_gripper = list(gripper.iter("sensor"))
+    assert all(camera in on_gripper for camera in cameras.values())
+    for eye, apex in _LENS_APEX.items():
+        xyz, _ = _pose(cameras[eye])
+        assert np.allclose(xyz, apex, atol=1e-5), eye
+    left, right = (_pose(cameras[e])[0] for e in ("left", "right"))
+    assert float(np.linalg.norm(right - left)) == pytest.approx(0.060, abs=1e-6)
+
+
+def test_the_arm_cameras_look_along_the_jaws_tilted_toward_them(sdf: ET.Element) -> None:
+    """A gz camera looks along its +x, with +y to the image's left and +z up."""
+    cameras = _arm_cameras(sdf)
+    rotations = {eye: _rotation(*_pose(c)[1]) for eye, c in cameras.items()}
+    assert np.allclose(rotations["left"], rotations["right"], atol=1e-9), "the pair is parallel"
+    view, image_left, image_up = rotations["left"].T
+    jaws = np.array([0.0, 0.0, -1.0])  # the jaws point along -z of gripper_link
+    assert np.degrees(np.arccos(view @ jaws)) == pytest.approx(_TILT_DEG, abs=0.01)
+    assert view[1] < 0, "tilted toward the jaws, away from the camera's side (+y)"
+    assert image_up[1] > 0.9, "image up points away from the gripper: jaws at the bottom"
+    left, right = (_pose(cameras[e])[0] for e in ("left", "right"))
+    assert float((left - right) @ image_left) > 0, "the left eye is on the image's left"
+
+
+def test_the_arm_cameras_match_the_measured_calibration(sdf: ET.Element) -> None:
+    calibration = json.loads(_CALIBRATION.read_text(encoding="utf-8"))
+    width, height = calibration["image_size"]
+    hfov = 2.0 * float(np.arctan(width / 2.0 / calibration["focal_px"]))
+    for eye, camera in _arm_cameras(sdf).items():
+        fov = float(camera.findtext("camera/horizontal_fov") or "nan")
+        assert fov == pytest.approx(hfov, abs=1e-4), eye
+        assert int(camera.findtext("camera/image/width") or 0) == width, eye
+        assert int(camera.findtext("camera/image/height") or 0) == height, eye

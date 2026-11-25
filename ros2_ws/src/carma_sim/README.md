@@ -168,7 +168,7 @@ the front guard. `arm:=true` spawns the second one, still named `carma_ugv`.
 | Arm mass | 0.632 kg: the seven URDF links, moving jaw included |
 | Joint effort / speed limit | 2.94 N·m / 4.7 rad/s (12 V STS3215), all six joints |
 | Gripper | the standard SO-101 hinged jaw, one revolute `gripper`, -0.174533 (closed) to 1.74533 rad |
-| Arm stereo camera | 60 mm baseline, 640 × 480 per eye, 58.9° horizontal, 15 Hz, looking down the jaws |
+| Arm stereo camera | 60 mm baseline, 640 × 480 per eye, 58.9° horizontal, 15 Hz, on the camera bracket: 13.7 mm above the fixed jaw, looking along the jaws tilted 15° toward them |
 
 Kinematics, joint limits and link masses of all six joints are copied from the
 official URDF (`Simulation/SO101/so101_new_calib.urdf` in TheRobotStudio/SO-ARM100,
